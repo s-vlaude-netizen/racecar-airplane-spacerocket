@@ -21,7 +21,7 @@ dependencies {
 }
 
 // Knobs for the dev tooling (tools/render-check): forwarded to the test JVM when given as -Dkey=value.
-val toolingProps = listOf("simVerbose", "traceDir", "traceW", "traceH", "hudStatesDir", "audioDir")
+val toolingProps = listOf("simVerbose", "traceDir", "traceW", "traceH", "hudStatesDir", "audioDir", "chaos", "chaosRuns", "chaosFrames", "chaosSeed")
 
 tasks.test {
     for (key in toolingProps) System.getProperty(key)?.let { systemProperty(key, it) }

@@ -39,9 +39,11 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
     private val boltS = FloatArray(8)
     private var bolts = 0
 
+    /** A surface can briefly report 0 x N while windows are being resized; keep the last usable size then. */
     fun resize(w: Int, h: Int) {
+        if (w <= 0 || h <= 0) return
         renderer.resize(w, h)
-        rig.aspect = w.toFloat() / max(1, h)
+        rig.aspect = w.toFloat() / h
     }
 
     fun release() {

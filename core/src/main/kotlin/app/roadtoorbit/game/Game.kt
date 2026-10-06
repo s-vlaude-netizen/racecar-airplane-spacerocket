@@ -92,8 +92,17 @@ class Game(seed: Long = 1L) {
 
     var bestScore = 0
 
-    /** Chosen on the menu; applies from the next [startRun]. */
+    /**
+     * Chosen on the menu; applies from the next [startRun]. Changes outside the menu are ignored, because a run
+     * in progress (shields, speed, spacing) must never see its rules change underneath it - queued taps can
+     * arrive late.
+     */
     var difficulty = Difficulty.NORMAL
+        set(value) {
+            if (phase != Phase.MENU) return
+            field = value
+            player.health = value.maxHealth
+        }
 
     val maxHealth: Int get() = difficulty.maxHealth
 
