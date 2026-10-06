@@ -160,7 +160,8 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         c.drawRect(0f, 0f, w, h, fill)
         label(c, "Something went wrong", w / 2, h * 0.38f, 5f * u, Color.WHITE, Paint.Align.CENTER, sans)
         label(c, msg, w / 2, h * 0.50f, 2.6f * u, Color.rgb(255, 190, 190), Paint.Align.CENTER, light)
-        label(c, "Your device may not support OpenGL ES 3.0", w / 2, h * 0.58f, 2.4f * u, Color.rgb(200, 200, 220), Paint.Align.CENTER, light)
+        val hint = if (msg.startsWith("Graphics setup")) "Your device may not support OpenGL ES 3.0" else "Please restart the game"
+        label(c, hint, w / 2, h * 0.58f, 2.4f * u, Color.rgb(200, 200, 220), Paint.Align.CENTER, light)
     }
 
     // ---- in-game HUD ------------------------------------------------------------------------------------

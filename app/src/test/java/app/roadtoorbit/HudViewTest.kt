@@ -106,4 +106,13 @@ class HudViewTest {
     }
 
     @Test fun errorScreen() = render("error", UiBridge().also { it.fatalError = "Graphics setup failed: demo" }) { s -> base(s, Phase.MENU, 0) }
+
+    @Test fun runtimeErrorScreen() = render(
+        "error_runtime",
+        // worst case: the 120-character limit GameRenderer applies to the message
+        UiBridge().also {
+            it.fatalError = ("Unexpected error: Attempt to invoke virtual method 'float app.roadtoorbit.game.Entity.getZ()' " +
+                "on a null object reference (SceneRenderer.kt:312)").take(120)
+        },
+    ) { s -> base(s, Phase.MENU, 0) }
 }

@@ -2,6 +2,7 @@ package app.roadtoorbit
 
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
+import android.util.Log
 import app.roadtoorbit.audio.AudioEngine
 import app.roadtoorbit.game.Difficulty
 import app.roadtoorbit.game.Game
@@ -31,7 +32,13 @@ class GameRenderer(
 
     private val library = MeshLibrary().also { lib ->
         // generate all procedural geometry off the GL thread so nothing hitches mid-game
-        Thread({ lib.prewarm() }, "mesh-prewarm").apply { isDaemon = true; start() }
+        Thread({
+            try {
+                lib.prewarm()
+            } catch (t: Throwable) {
+                Log.w(TAG, "mesh prewarm failed; the remaining meshes are built on demand", t)
+            }
+        }, "mesh-prewarm").apply { isDaemon = true; start() }
     }
     private var scene: SceneRenderer? = null
     private var width = 1
@@ -53,8 +60,9 @@ class GameRenderer(
             lastNanos = 0L
             bridge.fatalError = null
         } catch (t: Throwable) {
+            Log.e(TAG, "graphics setup failed", t)
             failed = true
-            bridge.fatalError = "Graphics setup failed: ${t.message ?: t.javaClass.simpleName}"
+            bridge.fatalError = describe("Graphics setup failed", t)
         }
     }
 
@@ -72,6 +80,18 @@ class GameRenderer(
             GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
             return
         }
+        try {
+            frame(s)
+        } catch (t: Throwable) {
+            // say what happened on screen (and in Logcat) instead of silently killing the app
+            Log.e(TAG, "frame failed", t)
+            failed = true
+            audio.silenceEngine()
+            bridge.fatalError = describe("Unexpected error", t)
+        }
+    }
+
+    private fun frame(s: SceneRenderer) {
         val now = System.nanoTime()
         val dt = if (lastNanos == 0L) 1f / 60f else ((now - lastNanos) / 1e9f).coerceIn(0.0005f, 0.05f)
         lastNanos = now
@@ -176,7 +196,15 @@ class GameRenderer(
         scene = null
     }
 
+    /** One short line for the error screen: what failed and where; the full trace goes to Logcat. */
+    private fun describe(what: String, t: Throwable): String {
+        val at = t.stackTrace.firstOrNull()?.let { " (${it.fileName}:${it.lineNumber})" } ?: ""
+        val reason = (t.message ?: t.javaClass.simpleName).replace(Regex("\\s+"), " ")
+        return "$what: $reason$at".take(120)
+    }
+
     private companion object {
         const val MIN_SCALE = 0.55f
+        const val TAG = "RoadToOrbit"
     }
 }

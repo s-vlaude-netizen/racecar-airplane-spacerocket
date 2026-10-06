@@ -208,11 +208,13 @@ class AudioEngine(private val context: Context, soundOn: Boolean, musicOn: Boole
                 return
             }
             Thread({
-                val pcm = synchronized(cache) { cache[t] } ?: MusicSynth.render(t).also { synchronized(cache) { cache[t] = it } }
-                synchronized(lock) {
-                    if (wanted != t) return@Thread // the game moved on while we were rendering
-                    stopLocked()
-                    try {
+                // music is optional: nothing in here may take the game down (an uncaught exception on any
+                // thread kills the whole app on Android)
+                try {
+                    val pcm = synchronized(cache) { cache[t] } ?: MusicSynth.render(t).also { synchronized(cache) { cache[t] = it } }
+                    synchronized(lock) {
+                        if (wanted != t) return@Thread // the game moved on while we were rendering
+                        stopLocked()
                         val attrs = AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_GAME)
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -234,9 +236,9 @@ class AudioEngine(private val context: Context, soundOn: Boolean, musicOn: Boole
                         at.play()
                         track = at
                         playing = t
-                    } catch (_: Throwable) {
-                        // music is optional
                     }
+                } catch (_: Throwable) {
+                    // silence is better than a crash
                 }
             }, "music").apply { isDaemon = true; start() }
         }
