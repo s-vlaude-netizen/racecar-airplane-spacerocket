@@ -109,6 +109,11 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        tilt.refreshRotation() // the manifest handles orientation changes itself, so this is where a flip arrives
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) enterImmersive()

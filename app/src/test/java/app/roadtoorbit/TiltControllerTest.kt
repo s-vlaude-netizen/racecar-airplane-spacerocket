@@ -30,6 +30,7 @@ class TiltControllerTest {
         activity = Robolectric.buildActivity(Activity::class.java).create().get()
         bridge = UiBridge().also { it.tiltOn = true }
         tilt = TiltController(activity, bridge)
+        tilt.start() // registers the display listener like the activity does
     }
 
     private fun rad(deg: Float) = Math.toRadians(deg.toDouble()).toFloat()
@@ -37,6 +38,7 @@ class TiltControllerTest {
     /** Feeds the controller a phone held with the screen leaning back [lean] degrees and the right edge [rollDown] degrees low. */
     private fun hold(rotation: Int, lean: Float, rollDown: Float = 0f, events: Int = 40) {
         shadowOf(activity.windowManager.defaultDisplay).setRotation(rotation)
+        shadowOf(android.os.Looper.getMainLooper()).idle() // the system announces the change to display listeners
         val g = 9.81f
         // gravity as the sensor reports it (pointing up), in the screen frame: x right, y up, z out of the screen
         val sx = -g * sin(rad(rollDown))
@@ -147,6 +149,34 @@ class TiltControllerTest {
         bridge.input.steerX = 0.4f
         hold(Surface.ROTATION_90, lean = 30f, rollDown = 25f)
         assertEquals(0.4f, bridge.input.steerX, 1e-6f)
+    }
+
+    // the Android compile classpath hides java.lang.management, the JVM running the test has it
+    private val mx = Class.forName("java.lang.management.ManagementFactory").getMethod("getThreadMXBean").invoke(null)!!
+    private val getAllocated = Class.forName("com.sun.management.ThreadMXBean").getMethod("getThreadAllocatedBytes", java.lang.Long.TYPE)
+    private fun allocated(): Long = getAllocated.invoke(mx, Thread.currentThread().id) as Long
+
+    /**
+     * Tilt steering runs a callback on the main thread about 50 times a second for as long as the game is open. It
+     * must not allocate (a leak would end in the out-of-memory error the player saw after switching it on).
+     */
+    @Test fun sensorEventsDoNotAllocateOrLeak() {
+        bridge.hud.latest.phase = Phase.RUN
+        calibrate(Surface.ROTATION_90, lean = 30f)
+        val events = 100_000 // about half an hour of play at 50 Hz
+        val e: SensorEvent = ShadowSensorManager.createSensorEvent(3)
+        e.values[0] = 8.5f; e.values[1] = 0.3f; e.values[2] = 4.9f
+        repeat(2_000) { clockNs += 20_000_000L; e.timestamp = clockNs; tilt.onSensorChanged(e) } // warm up
+        val start = allocated()
+        repeat(events) {
+            e.values[1] = (it % 7) * 0.1f
+            clockNs += 20_000_000L
+            e.timestamp = clockNs
+            tilt.onSensorChanged(e)
+        }
+        val perEvent = (allocated() - start) / events
+        println("tilt: $perEvent bytes allocated per sensor event")
+        assertTrue("a sensor event allocates $perEvent bytes", perEvent <= 16)
     }
 
     @Test fun theFirstCalibrationStartsFromTheRealAttitude() {

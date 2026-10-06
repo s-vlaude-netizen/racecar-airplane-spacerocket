@@ -6,6 +6,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.hardware.display.DisplayManager
 import android.view.Surface
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.input.TiltMath
@@ -30,34 +31,45 @@ class TiltController(private val activity: Activity, private val bridge: UiBridg
     private var fLean = 0f
     private val screen = FloatArray(3)
     private var rotation = Surface.ROTATION_90
-    private var rotationCheckedAtMs = Long.MIN_VALUE / 2
 
     val available: Boolean get() = sensor != null
 
+    // Asking the display for its rotation allocates about 5 KB per call. Doing that on every sensor event (50 times
+    // a second) is ~15 MB of garbage a minute on the main thread, and it only starts once tilt steering is on - so the
+    // rotation is read when the display announces a change instead.
+    private val displays = activity.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) = refreshRotation()
+    }
+
     fun start() {
+        refreshRotation()
+        displays.registerDisplayListener(displayListener, null) // delivered on the main thread, like the sensor events
         sensor?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
     }
 
     fun stop() {
         manager.unregisterListener(this)
+        displays.unregisterDisplayListener(displayListener)
+    }
+
+    /** Re-reads the display rotation (the display listener and the activity's configuration callback both call this). */
+    fun refreshRotation() {
+        @Suppress("DEPRECATION")
+        val now = activity.windowManager.defaultDisplay.rotation
+        if (now != rotation) {
+            // the phone was flipped between the two landscapes: the old attitude means nothing any more
+            rotation = now
+            haveNeutral = false
+        }
     }
 
     override fun onSensorChanged(e: SensorEvent) {
         if (!bridge.tiltOn) {
             haveNeutral = false
             return
-        }
-        // the display rotation hardly ever changes; asking for it 50 times a second is wasted binder traffic
-        val nowMs = e.timestamp / 1_000_000L
-        if (nowMs - rotationCheckedAtMs > 100L) {
-            rotationCheckedAtMs = nowMs
-            @Suppress("DEPRECATION")
-            val now = activity.windowManager.defaultDisplay.rotation
-            if (now != rotation) {
-                // the phone was flipped between the two landscapes: the old attitude means nothing any more
-                rotation = now
-                haveNeutral = false
-            }
         }
         // express the reading in screen axes (x right, y up, z out of the screen) for the current display rotation
         TiltMath.toScreen(rotation, e.values[0], e.values[1], e.values[2], screen)
