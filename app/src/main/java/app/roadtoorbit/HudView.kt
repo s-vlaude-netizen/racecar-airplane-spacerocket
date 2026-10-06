@@ -42,6 +42,8 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     private val sans: Typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
     private val sansItalic: Typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC)
     private val light: Typeface = Typeface.create("sans-serif-condensed", Typeface.NORMAL)
+    private val mono: Typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
+    private var copiedAt = -1_000_000L // "never": far enough in the past that a freshly booted clock is not within 2.5 s of it
 
     private var w = 1f
     private var h = 1f
@@ -132,10 +134,18 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     // drawing
     // ===================================================================================================
 
+    /** A report screen (fatal error now, or a crash from the previous session) replaces the game until it is dealt with. */
+    private fun reportShowing(): Boolean = bridge.fatalError != null || bridge.crashReport != null
+
     override fun onDraw(c: Canvas) {
         val err = bridge.fatalError
         if (err != null) {
-            drawError(c, err)
+            drawReport(c, "Something went wrong", bridge.fatalDetails ?: err, hint(err), canContinue = false)
+            return
+        }
+        val crash = bridge.crashReport
+        if (crash != null) {
+            drawReport(c, "The game hit a problem last time", crash, "Copy the report and send it to the developer", canContinue = true)
             return
         }
         val s = bridge.hud.latest
@@ -154,14 +164,48 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         postInvalidateOnAnimation()
     }
 
-    private fun drawError(c: Canvas, msg: String) {
+    private fun hint(msg: String): String =
+        if (msg.startsWith("Graphics setup")) "Your device may not support OpenGL ES 3.0 - copy the report if you can" else "Please restart the game - copy the report and send it to the developer"
+
+    /** The first lines of [report] in a monospace block, plus COPY (and CONTINUE) buttons. Static: redrawn on touch only. */
+    private fun drawReport(c: Canvas, title: String, report: String, hint: String, canContinue: Boolean) {
+        buttonCount = 0
         fill.shader = null
-        fill.color = Color.rgb(40, 4, 10)
+        fill.color = Color.rgb(34, 6, 16)
         c.drawRect(0f, 0f, w, h, fill)
-        label(c, "Something went wrong", w / 2, h * 0.38f, 5f * u, Color.WHITE, Paint.Align.CENTER, sans)
-        label(c, msg, w / 2, h * 0.50f, 2.6f * u, Color.rgb(255, 190, 190), Paint.Align.CENTER, light)
-        val hint = if (msg.startsWith("Graphics setup")) "Your device may not support OpenGL ES 3.0" else "Please restart the game"
-        label(c, hint, w / 2, h * 0.58f, 2.4f * u, Color.rgb(200, 200, 220), Paint.Align.CENTER, light)
+        label(c, title, w / 2, h * 0.13f, 4.6f * u, Color.WHITE, Paint.Align.CENTER, sans)
+        val size = 2.05f * u
+        val maxChars = ((w - 12f * u) / (size * 0.55f)).toInt().coerceAtLeast(24)
+        var y = h * 0.21f
+        var shown = 0
+        for (raw in report.lineSequence()) {
+            if (shown >= REPORT_LINES) break
+            val text = if (raw.length > maxChars) raw.take(maxChars - 1) + "…" else raw
+            label(c, text, 6f * u, y, size, Color.rgb(255, 205, 205), Paint.Align.LEFT, mono)
+            y += size * 1.5f
+            shown++
+        }
+        label(c, hint, w / 2, h * 0.79f, 2.4f * u, Color.rgb(200, 200, 220), Paint.Align.CENTER, light)
+        val copied = SystemClock.uptimeMillis() - copiedAt < 2500
+        if (canContinue) {
+            addButton(BTN_COPY, if (copied) "COPIED" else "COPY REPORT", true, h * 0.89f, widthU = 36f, heightU = 8f, xOffsetU = -20f)
+            addButton(BTN_CONTINUE, "CONTINUE", false, h * 0.89f, widthU = 30f, heightU = 8f, xOffsetU = 17f)
+        } else {
+            addButton(BTN_COPY, if (copied) "COPIED" else "COPY REPORT", true, h * 0.89f, widthU = 40f, heightU = 8f)
+        }
+        drawButtons(c)
+        if (copied) postInvalidateDelayed(2600) // switch the label back
+    }
+
+    private fun copyReport() {
+        val text = bridge.fatalDetails ?: bridge.fatalError ?: bridge.crashReport ?: return
+        try {
+            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("Road to Orbit report", text))
+            copiedAt = SystemClock.uptimeMillis()
+        } catch (_: Throwable) {
+            // no clipboard: the report is on screen anyway
+        }
     }
 
     // ---- in-game HUD ------------------------------------------------------------------------------------
@@ -725,6 +769,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
             }
             MotionEvent.ACTION_CANCEL -> cancelAll()
         }
+        if (reportShowing()) invalidate() // the report screens are static: show the pressed state
         return true
     }
 
@@ -732,8 +777,11 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         hypot(x - c[0], y - c[1]) <= c[2] * slop
 
     private fun down(id: Int, x: Float, y: Float, s: HudState) {
-        if (bridge.fatalError != null) return
         downX = x; downY = y
+        if (reportShowing()) {
+            pressedButton = hitButton(x, y, s)
+            return
+        }
         val gameplay = (s.phase == Phase.RUN || s.phase == Phase.COUNTDOWN || s.phase == Phase.CRASHING) && !bridge.paused
         if (!gameplay) {
             pressedButton = hitButton(x, y, s)
@@ -822,6 +870,10 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
 
     /** Index of the overlay/menu element under (x, y): button index, PILL_HIT + n, PLAY_HIT or -1. */
     private fun hitButton(x: Float, y: Float, s: HudState): Int {
+        if (reportShowing()) {
+            for (i in 0 until buttonCount) if (buttons[i].r.contains(x, y)) return i
+            return -1
+        }
         if (s.phase == Phase.MENU && !bridge.paused) {
             for (i in 0 until pills.size) if (pills[i].contains(x, y)) return PILL_HIT + i
             return PLAY_HIT
@@ -843,6 +895,11 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
                 BTN_RETRY -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.RETRY) }
                 BTN_PLAY_AGAIN -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.PLAY) }
                 BTN_MENU -> bridge.post(UiAction.MENU)
+                BTN_COPY -> copyReport()
+                BTN_CONTINUE -> {
+                    CrashReporter.clear(context)
+                    bridge.crashReport = null
+                }
             }
         }
     }
@@ -855,5 +912,8 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         const val BTN_RETRY = 3
         const val BTN_PLAY_AGAIN = 4
         const val BTN_MENU = 5
+        const val BTN_COPY = 6
+        const val BTN_CONTINUE = 7
+        const val REPORT_LINES = 15
     }
 }

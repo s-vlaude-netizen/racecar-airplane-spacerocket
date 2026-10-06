@@ -45,6 +45,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReporter.install(this)
+        CrashReporter.note("create")
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (Build.VERSION.SDK_INT >= 28) {
             window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -54,6 +56,7 @@ class MainActivity : Activity() {
             soundOn = prefs.soundOn
             musicOn = prefs.musicOn
             tiltOn = prefs.tiltOn
+            crashReport = CrashReporter.pending(this@MainActivity) // what the last session left behind, if anything
         }
         audio = AudioEngine(applicationContext, bridge.soundOn, bridge.musicOn)
         renderer = GameRenderer(
@@ -84,12 +87,14 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        CrashReporter.note("resume")
         glView.onResume()
         tilt.start()
         enterImmersive()
     }
 
     override fun onPause() {
+        CrashReporter.note("pause")
         // never leave a run ticking in the background
         if (isGameplay()) bridge.paused = true
         bridge.input.neutral()

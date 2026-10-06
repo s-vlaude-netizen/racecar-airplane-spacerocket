@@ -13,8 +13,8 @@ android {
         applicationId = "app.roadtoorbit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
 
     // A fixed, openly committed debug-style key so every build (local or CI) is signed identically
@@ -33,9 +33,11 @@ android {
             signingConfig = signingConfigs.getByName("shared")
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // No R8: the game is ~130 KB of code, shrinking buys nothing, and what ships should be exactly the
+            // bytecode the tests ran (R8's class merging and inlining cannot be exercised on the JVM). It also
+            // keeps real class names and line numbers in crash reports.
+            isMinifyEnabled = false
+            isShrinkResources = false
             signingConfig = signingConfigs.getByName("shared")
         }
     }

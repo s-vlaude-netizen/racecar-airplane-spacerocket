@@ -6,7 +6,7 @@ where the rocket lands and turns back into a car for a victory drive.
 
 Everything you see and hear is generated in code: all 3D models, the sky, the terrain, every sound
 effect and the music. There are no image, model or audio files in the app, and the only runtime dependency
-is the Kotlin standard library (the whole APK is about 130 KB).
+is the Kotlin standard library (the whole APK is under 1 MB).
 
 <table>
   <tr>
@@ -103,7 +103,16 @@ Some of the techniques:
 * `core` has unit tests plus a **bot** that plays all three stages headlessly on several seeds, on every
   difficulty and with a human-like reaction delay, to prove the game is winnable and never produces NaNs.
   The renderer, the vehicle morph, the nebula cubemap and the audio synthesisers have tests too.
-* `app` has Robolectric tests that draw every HUD and menu screen to PNGs (`app/build/hud`).
+* **Chaos tests** play the way real devices and thumbs do - random frame times and hitches, random steering and
+  taps, restarts and retries at any moment, pauses, degenerate surface sizes, GL context loss - and render *every*
+  frame through `StrictGles`, a GL implementation that validates each call like a strict driver (buffer positions
+  and sizes, draws that read past a buffer, uniforms from the wrong program, non-finite numbers, leaked objects).
+  `./gradlew :core:test -Dchaos=heavy` runs 120 sessions of 15,000 frames (about 1.8 million frames).
+* **Memory budgets** fail the build if the heap grows over a long play session, if a frame allocates more than a
+  few KB, or if start-up work (meshes, sound effects, one music loop) needs more than a fraction of what a phone allows.
+* `app` has Robolectric tests that draw every HUD and menu screen to PNGs (`app/build/hud`), fuzz the HUD with random
+  states and screen sizes and the touch handling with thousands of random multi-touch events (malformed sequences
+  included), run the activity through random lifecycle changes, and drive the real audio engine frame by frame.
 * `tools/render-check` records the *real renderer's* GL command stream to a trace and replays it in headless
   Chromium (WebGL2), which both compiles the GLSL ES 3.00 shaders in a real implementation and produces
   PNG frames of every stage. The real HUD is drawn on top, so the result is what a player sees:
@@ -118,11 +127,19 @@ Some of the techniques:
   records showroom views of all three forms and of the stages of both transformations, from the front,
   side and rear, in the same way.
 
+## If something goes wrong
+
+The game saves a small report when it crashes (and when it hits an error it can recover from by returning to the menu):
+the stack trace, the device, the Java heap, a census of the threads and the last things the game did. The next launch shows
+it with a **COPY REPORT** button and a **CONTINUE** button - paste the report into a bug report. If the game ever stops
+with an error screen, that screen shows the same report. (Logcat has the full trace too: `adb logcat -s RoadToOrbit`.)
+
 ## Status
 
 Developed and verified in a headless cloud environment: the code compiles, all tests pass, Android lint
 reports no errors (a few warnings, mostly the deliberate fixed-landscape, non-resizable activity), and the
-rendered frames were inspected. It has **not been run on a physical device or emulator**. Things that only
-real hardware can confirm: the frame rate on actual GPUs (software GL was used to render the frames), tilt
-steering, touch feel, and how the synthesised audio sounds (it was checked numerically and as spectrograms,
-not by ear).
+rendered frames were inspected. The first run on a real phone found an out-of-memory crash (the music was
+re-requested on every frame in the menu and on the results screens, each request synthesising a whole loop on a new
+thread); that is fixed and has regression tests. Things that only real hardware can confirm: the frame rate on actual
+GPUs (software GL was used to render the frames), tilt steering, touch feel, and how the synthesised audio sounds (it
+was checked numerically and as spectrograms, not by ear).

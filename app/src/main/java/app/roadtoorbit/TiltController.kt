@@ -23,6 +23,8 @@ class TiltController(private val activity: Activity, private val bridge: UiBridg
     private var haveNeutral = false
     private var fx = 0f
     private var fy = 0f
+    private var rotation = Surface.ROTATION_90
+    private var rotationCheckedAtMs = Long.MIN_VALUE / 2
 
     val available: Boolean get() = sensor != null
 
@@ -39,8 +41,13 @@ class TiltController(private val activity: Activity, private val bridge: UiBridg
             haveNeutral = false
             return
         }
-        @Suppress("DEPRECATION")
-        val rotation = activity.windowManager.defaultDisplay.rotation
+        // the display rotation hardly ever changes; asking for it 50 times a second is wasted binder traffic
+        val nowMs = e.timestamp / 1_000_000L
+        if (nowMs - rotationCheckedAtMs > 250L) {
+            rotationCheckedAtMs = nowMs
+            @Suppress("DEPRECATION")
+            rotation = activity.windowManager.defaultDisplay.rotation
+        }
         val ax = e.values[0]
         val ay = e.values[1]
         // express the reading in screen axes (x right, y up) for the current display rotation

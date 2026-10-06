@@ -30,6 +30,12 @@ class UiBridge {
     /** Set when the GL setup fails so the HUD can show something more useful than a black screen. */
     @Volatile var fatalError: String? = null
 
+    /** The full report behind [fatalError] (stack trace, device, memory), shown on screen and copyable. */
+    @Volatile var fatalDetails: String? = null
+
+    /** What the previous session left behind when it crashed; shown at launch until dismissed. */
+    @Volatile var crashReport: String? = null
+
     /** Set by the GL thread once the first frame has been rendered. */
     @Volatile var ready = false
 

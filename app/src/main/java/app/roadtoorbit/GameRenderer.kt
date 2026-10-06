@@ -45,6 +45,9 @@ class GameRenderer(
     private var height = 1
     private var lastNanos = 0L
     private var failed = false
+    private var recentFailures = 0
+    private var lastFailureNanos = 0L
+    private var lastPhase: Phase? = null
 
     // adaptive resolution: if frames stay slow, render fewer pixels (the HUD stays sharp)
     private var scale = prefs.renderScale
@@ -62,11 +65,14 @@ class GameRenderer(
         } catch (t: Throwable) {
             Log.e(TAG, "graphics setup failed", t)
             failed = true
+            bridge.fatalDetails = CrashReporter.save("Graphics setup failed", Thread.currentThread().name, t)
             bridge.fatalError = describe("Graphics setup failed", t)
         }
     }
 
     override fun onSurfaceChanged(gl: GL10?, w: Int, h: Int) {
+        CrashReporter.note("surface ${w}x$h")
+        if (w <= 0 || h <= 0) return // transient while windows resize; keep the last usable size
         width = w
         height = h
         GLES30.glViewport(0, 0, w, h)
@@ -83,11 +89,35 @@ class GameRenderer(
         try {
             frame(s)
         } catch (t: Throwable) {
-            // say what happened on screen (and in Logcat) instead of silently killing the app
-            Log.e(TAG, "frame failed", t)
+            onFrameFailure(t)
+        }
+    }
+
+    /**
+     * A frame threw. A one-off (say, a memory spike) is survivable: save a report, go back to the menu with a
+     * fresh game and carry on. Three failures within ten seconds mean it is not going away: stop and say what it is.
+     */
+    private fun onFrameFailure(t: Throwable) {
+        Log.e(TAG, "frame failed", t)
+        val now = System.nanoTime()
+        if (now - lastFailureNanos > 10_000_000_000L) recentFailures = 0
+        lastFailureNanos = now
+        recentFailures++
+        val thread = Thread.currentThread().name
+        if (recentFailures >= 3) {
             failed = true
             audio.silenceAll()
+            bridge.fatalDetails = CrashReporter.save("The game hit repeated errors and stopped", thread, t)
             bridge.fatalError = describe("Unexpected error", t)
+        } else {
+            CrashReporter.save("The game hit an error and went back to the menu", thread, t)
+            try {
+                game.toMenu()
+                bridge.paused = false
+                bridge.input.neutral()
+            } catch (inner: Throwable) {
+                Log.e(TAG, "recovery failed", inner)
+            }
         }
     }
 
@@ -116,6 +146,10 @@ class GameRenderer(
                 if (game.bestScore > prefs.best(game.difficulty)) prefs.setBest(game.difficulty, game.bestScore)
             }
         }
+        if (game.phase != lastPhase) {
+            lastPhase = game.phase
+            CrashReporter.note("phase ${game.phase} leg ${game.legIndex}")
+        }
         // states what should be audible right now; idempotent, so calling it every frame (paused or not) is fine
         audio.update(game, bridge.paused)
         s.render(game)
@@ -143,6 +177,7 @@ class GameRenderer(
     val initialScale: Float get() = scale
 
     private fun handle(a: UiAction) {
+        CrashReporter.note("action $a")
         when (a) {
             UiAction.PLAY -> {
                 game.startRun()
