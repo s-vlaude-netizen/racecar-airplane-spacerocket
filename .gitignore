@@ -1,0 +1,22 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+captures/
+.cxx/
+.externalNativeBuild/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Headless render-check output
+tools/render-check/out/
+tools/render-check/node_modules/
+
+# Kotlin Gradle plugin scratch
+.kotlin/
