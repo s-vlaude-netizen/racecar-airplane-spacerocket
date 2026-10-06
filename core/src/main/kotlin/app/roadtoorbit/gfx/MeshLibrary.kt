@@ -33,9 +33,23 @@ enum class MeshId {
  * Android GL context loss the GPU copies can be recreated without regenerating geometry.
  */
 class MeshLibrary {
-    private val cache = HashMap<MeshId, MeshData>()
+    private val cache = java.util.concurrent.ConcurrentHashMap<MeshId, MeshData>()
 
-    fun data(id: MeshId): MeshData = cache.getOrPut(id) { build(id) }
+    /** Thread-safe: a background thread may prewarm while the GL thread asks for meshes. */
+    fun data(id: MeshId): MeshData {
+        cache[id]?.let { return it }
+        val built = build(id) // building is pure, so a rare duplicate build is harmless
+        return cache.putIfAbsent(id, built) ?: built
+    }
+
+    /**
+     * Builds every mesh (and the baked nebula) on the calling thread. Call it from a background
+     * thread at start-up so the first time something appears in the game never costs a frame.
+     */
+    fun prewarm() {
+        NebulaCubeCache.faces
+        for (id in MeshId.values()) data(id)
+    }
 
     private fun build(id: MeshId): MeshData {
         val b = MeshBuilder()

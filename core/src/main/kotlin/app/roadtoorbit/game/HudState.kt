@@ -29,6 +29,7 @@ class HudState {
 
     var health = 0
     var maxHealth = Tuning.MAX_HEALTH
+    var difficulty = Difficulty.NORMAL
     var boost = 0f
     var boosting = false
     var invulnerable = false
@@ -99,10 +100,11 @@ internal fun Game.fillHudInternal(h: HudState) {
     h.ringStreak = ringStreak
     h.nearMisses = nearMisses
     h.health = player.health
-    h.maxHealth = Tuning.MAX_HEALTH
+    h.maxHealth = maxHealth
+    h.difficulty = difficulty
     h.boost = player.boostMeter
     h.boosting = player.boosting
-    h.invulnerable = player.invuln > 0f
+    h.invulnerable = player.blink > 0f
     h.speedKmh = (player.speed * l.displayFactor).toInt()
     h.altitudeKm = altitudeKm()
     h.runTime = runTime

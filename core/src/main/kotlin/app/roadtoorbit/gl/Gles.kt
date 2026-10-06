@@ -61,8 +61,18 @@ interface Gles {
     fun clearColor(r: Float, g: Float, b: Float, a: Float)
     fun clear(mask: Int)
 
+    // ---- textures (only a small baked cube map is used)
+    fun genTexture(): Int
+    fun deleteTexture(texture: Int)
+    fun activeTexture(unit: Int)
+    fun bindTexture(target: Int, texture: Int)
+    fun texParameteri(target: Int, pname: Int, value: Int)
+    fun texImage2D(target: Int, level: Int, internalFormat: Int, width: Int, height: Int, format: Int, type: Int, data: ByteBuffer?)
+    fun generateMipmap(target: Int)
+
     // ---- drawing
     fun drawArrays(mode: Int, first: Int, count: Int)
+    fun drawElements(mode: Int, count: Int, type: Int, offsetBytes: Int)
     fun getError(): Int
 }
 
@@ -72,12 +82,27 @@ object GL {
     const val FRAGMENT_SHADER = 0x8B30
 
     const val ARRAY_BUFFER = 0x8892
+    const val ELEMENT_ARRAY_BUFFER = 0x8893
     const val STATIC_DRAW = 0x88E4
     const val DYNAMIC_DRAW = 0x88E8
     const val STREAM_DRAW = 0x88E0
 
     const val FLOAT = 0x1406
     const val UNSIGNED_BYTE = 0x1401
+    const val UNSIGNED_SHORT = 0x1403
+
+    const val TEXTURE0 = 0x84C0
+    const val TEXTURE_CUBE_MAP = 0x8513
+    const val TEXTURE_CUBE_MAP_POSITIVE_X = 0x8515
+    const val TEXTURE_MIN_FILTER = 0x2801
+    const val TEXTURE_MAG_FILTER = 0x2800
+    const val TEXTURE_WRAP_S = 0x2802
+    const val TEXTURE_WRAP_T = 0x2803
+    const val TEXTURE_WRAP_R = 0x8072
+    const val LINEAR = 0x2601
+    const val LINEAR_MIPMAP_LINEAR = 0x2703
+    const val CLAMP_TO_EDGE = 0x812F
+    const val RGBA = 0x1908
 
     const val DEPTH_TEST = 0x0B71
     const val BLEND = 0x0BE2
@@ -150,6 +175,14 @@ open class NullGles : Gles {
     override fun viewport(x: Int, y: Int, w: Int, h: Int) {}
     override fun clearColor(r: Float, g: Float, b: Float, a: Float) {}
     override fun clear(mask: Int) {}
+    override fun genTexture() = name()
+    override fun deleteTexture(texture: Int) {}
+    override fun activeTexture(unit: Int) {}
+    override fun bindTexture(target: Int, texture: Int) {}
+    override fun texParameteri(target: Int, pname: Int, value: Int) {}
+    override fun texImage2D(target: Int, level: Int, internalFormat: Int, width: Int, height: Int, format: Int, type: Int, data: ByteBuffer?) {}
+    override fun generateMipmap(target: Int) {}
     override fun drawArrays(mode: Int, first: Int, count: Int) {}
+    override fun drawElements(mode: Int, count: Int, type: Int, offsetBytes: Int) {}
     override fun getError() = GL.NO_ERROR
 }

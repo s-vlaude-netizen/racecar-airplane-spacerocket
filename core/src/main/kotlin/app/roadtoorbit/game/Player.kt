@@ -24,6 +24,9 @@ class Player {
     var boostFactor = 0f
     var boosting = false
     var invuln = 0f
+
+    /** Counts down after taking damage; the vehicle blinks while it is positive. */
+    var blink = 0f
     var speedPenalty = 1f
 
     /** Suspension bounce (car) / hover wobble (rocket), purely visual. */
@@ -32,18 +35,20 @@ class Player {
 
     var alive = true
 
-    fun reset(mode: VehicleMode, y: Float, speed: Float) {
+    fun reset(mode: VehicleMode, y: Float, speed: Float, maxHealth: Int = Tuning.MAX_HEALTH) {
         this.mode = mode
         visual.settle(mode)
         x = 0f; this.y = y
         vx = 0f; vy = 0f
         yaw = 0f; pitch = 0f; roll = 0f
         this.speed = speed
-        health = Tuning.MAX_HEALTH
+        health = maxHealth
         boostMeter = 0.35f
         boostFactor = 0f
         boosting = false
         invuln = 0f
+        blink = 0f
+        visual.visible = true
         speedPenalty = 1f
         bounce = 0f; bounceV = 0f
         alive = true

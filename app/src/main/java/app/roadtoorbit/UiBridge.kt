@@ -5,7 +5,7 @@ import app.roadtoorbit.game.HudBuffer
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /** Things the UI can ask the game thread to do. */
-enum class UiAction { PLAY, RETRY, MENU, TOGGLE_SOUND, TOGGLE_TILT, CALIBRATE_TILT }
+enum class UiAction { PLAY, RETRY, MENU, TOGGLE_SOUND, TOGGLE_MUSIC, TOGGLE_TILT, CYCLE_DIFFICULTY }
 
 /**
  * Shared state between the UI thread (touch, HUD drawing, sensors) and the GL thread (simulation and
@@ -18,6 +18,7 @@ class UiBridge {
 
     @Volatile var paused = false
     @Volatile var soundOn = true
+    @Volatile var musicOn = true
     @Volatile var tiltOn = false
 
     /** True while a finger is on the on-screen stick (tilt steering then stands down). */

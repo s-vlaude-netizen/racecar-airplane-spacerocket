@@ -13,10 +13,15 @@ class GameSimTest {
         val modes: List<VehicleMode>, val transforms: Int,
     )
 
-    private fun play(seed: Long, boost: Boolean = false, maxSeconds: Float = 600f, skill: Float = 1f): Result {
+    private fun play(
+        seed: Long, boost: Boolean = false, maxSeconds: Float = 600f, skill: Float = 1f,
+        latency: Float = 0f, interval: Float = 0.1f, noise: Float = 0f,
+        difficulty: Difficulty = Difficulty.NORMAL,
+    ): Result {
         val game = Game(seed)
+        game.difficulty = difficulty
         val input = GameInput()
-        val bot = Bot(game, boost, skill)
+        val bot = Bot(game, boost, skill, latency, interval, noise)
         game.startRun(seed)
         var t = 0f
         val dt = 1f / 60f
@@ -83,6 +88,45 @@ class GameSimTest {
     }
 
     @Test
+    fun everyDifficultyIsWinnableByAGoodPilotAndPaysAccordingly() {
+        val scores = HashMap<Difficulty, Double>()
+        for (d in Difficulty.values()) {
+            var wins = 0
+            var total = 0.0
+            var hits = 0
+            val seeds = 8
+            for (seed in 1L..seeds.toLong()) {
+                val r = play(seed, difficulty = d)
+                if (r.finished) { wins++; total += r.score }
+                hits += r.hits
+            }
+            scores[d] = if (wins > 0) total / wins else 0.0
+            println("difficulty $d: wins=$wins/$seeds avgScore=${scores[d]!!.toInt()} avgHits=${hits / seeds.toFloat()}")
+            assertTrue(wins >= seeds - 3, "$d should be winnable by a good pilot (won $wins of $seeds)")
+        }
+        assertTrue(scores[Difficulty.HARD]!! > scores[Difficulty.NORMAL]!!, "hard pays more")
+        assertTrue(scores[Difficulty.NORMAL]!! > scores[Difficulty.EASY]!!, "easy pays less")
+    }
+
+    /** A sloppy, slow-reacting pilot should still be able to win sometimes and rarely die in the first leg. */
+    @Test
+    fun aHumanLikePilotCanPlayThroughTheEarlyLegs() {
+        var wins = 0
+        var deathsInLeg0 = 0
+        val seeds = 12
+        var hitsTotal = 0
+        for (seed in 1L..seeds.toLong()) {
+            val r = play(seed, latency = 0.28f, interval = 0.3f, noise = 0.25f)
+            hitsTotal += r.hits
+            if (r.finished) wins++
+            if (r.crashedInLeg == 0) deathsInLeg0++
+            println("human-like seed=$seed finished=${r.finished} crashedLeg=${r.crashedInLeg} hits=${r.hits} score=${r.score}")
+        }
+        println("human-like: wins=$wins/$seeds, deaths in the car leg=$deathsInLeg0, avg hits=${hitsTotal / seeds.toFloat()}")
+        assertTrue(deathsInLeg0 <= seeds / 3, "the opening race should not kill most imperfect pilots")
+    }
+
+    @Test
     fun anIdlePlayerCrashesIntoSomething() {
         val game = Game(11)
         val input = GameInput()
@@ -129,6 +173,12 @@ class GameSimTest {
         assertEquals(Tuning.MAX_HEALTH, game.player.health)
         assertTrue(game.player.alive)
         assertFalse(game.entities.isEmpty(), "world is repopulated for the retry")
+        assertTrue(game.player.visual.visible, "the vehicle must be drawn again after a retry")
+        // and the countdown leads into a playable run
+        var t2 = 0f
+        while (t2 < 5f && game.phase == Phase.COUNTDOWN) { game.update(1f / 60f, input); t2 += 1f / 60f }
+        assertEquals(Phase.RUN, game.phase)
+        assertTrue(game.player.visual.visible)
     }
 
     @Test

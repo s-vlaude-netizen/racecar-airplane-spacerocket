@@ -4,6 +4,8 @@ import app.roadtoorbit.gl.GL
 import app.roadtoorbit.gl.Gles
 import app.roadtoorbit.gl.GpuMesh
 import app.roadtoorbit.gl.ShaderProgram
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import app.roadtoorbit.math.Mat4
 
 /** How the next draws blend with the framebuffer. */
@@ -56,6 +58,7 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
     private val sSunDir = sky.uniform("uSunDir")
     private val sSunCol = sky.uniform("uSunColor")
     private val sSky = sky.uniform("uSky")
+    private val sNebula = sky.uniform("uNebula")
 
     // ---- terrain uniforms
     private val tView = terrain.uniform("uView")
@@ -78,6 +81,58 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
     private val pProj = particle.uniform("uProj")
     private val pBend = particle.uniform("uBend")
     private val pScale = particle.uniform("uPixelScale")
+
+    private val nebulaTexture: Int = createNebulaTexture()
+    private val grids = ArrayList<TerrainGrid>(2)
+
+    private class TerrainGrid(val cols: Int, val rows: Int, val vao: Int, val ibo: Int, val indexCount: Int)
+
+    private fun createNebulaTexture(): Int {
+        val faces = NebulaCubeCache.faces
+        val tex = gl.genTexture()
+        gl.activeTexture(GL.TEXTURE0)
+        gl.bindTexture(GL.TEXTURE_CUBE_MAP, tex)
+        val n = NebulaCube.SIZE
+        for (f in 0 until 6) {
+            val buf = ByteBuffer.allocateDirect(n * n * 4).order(ByteOrder.nativeOrder())
+            buf.put(faces[f]); buf.flip()
+            gl.texImage2D(GL.TEXTURE_CUBE_MAP_POSITIVE_X + f, 0, GL.RGBA, n, n, GL.RGBA, GL.UNSIGNED_BYTE, buf)
+        }
+        gl.texParameteri(GL.TEXTURE_CUBE_MAP, GL.TEXTURE_MIN_FILTER, GL.LINEAR)
+        gl.texParameteri(GL.TEXTURE_CUBE_MAP, GL.TEXTURE_MAG_FILTER, GL.LINEAR)
+        gl.texParameteri(GL.TEXTURE_CUBE_MAP, GL.TEXTURE_WRAP_S, GL.CLAMP_TO_EDGE)
+        gl.texParameteri(GL.TEXTURE_CUBE_MAP, GL.TEXTURE_WRAP_T, GL.CLAMP_TO_EDGE)
+        gl.texParameteri(GL.TEXTURE_CUBE_MAP, GL.TEXTURE_WRAP_R, GL.CLAMP_TO_EDGE)
+        return tex
+    }
+
+    private fun terrainGrid(cols: Int, rows: Int): TerrainGrid {
+        for (g in grids) if (g.cols == cols && g.rows == rows) return g
+        val stride = cols + 1
+        val count = cols * rows * 6
+        require(stride * (rows + 1) < 65536) { "terrain grid too large for 16-bit indices" }
+        val bytes = ByteBuffer.allocateDirect(count * 2).order(ByteOrder.nativeOrder())
+        val shorts = bytes.asShortBuffer()
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                val v00 = r * stride + c
+                val v10 = v00 + 1
+                val v01 = v00 + stride
+                val v11 = v01 + 1
+                // two CCW triangles seen from above
+                shorts.put(v00.toShort()); shorts.put(v10.toShort()); shorts.put(v11.toShort())
+                shorts.put(v00.toShort()); shorts.put(v11.toShort()); shorts.put(v01.toShort())
+            }
+        }
+        bytes.limit(count * 2); bytes.position(0)
+        val vao = gl.genVertexArray()
+        val ibo = gl.genBuffer()
+        gl.bindVertexArray(vao)
+        gl.bindBuffer(GL.ELEMENT_ARRAY_BUFFER, ibo)
+        gl.bufferData(GL.ELEMENT_ARRAY_BUFFER, count * 2, bytes, GL.STATIC_DRAW)
+        gl.bindVertexArray(0)
+        return TerrainGrid(cols, rows, vao, ibo, count).also { grids.add(it) }
+    }
 
     private val normalMat = FloatArray(9)
     private var env = Environment()
@@ -124,6 +179,9 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
         gl.uniform3f(sSunDir, env.sunDir[0], env.sunDir[1], env.sunDir[2])
         gl.uniform3f(sSunCol, env.sunColor[0], env.sunColor[1], env.sunColor[2])
         gl.uniform4f(sSky, env.starAmount, env.nebula, env.time, env.sunDisc)
+        gl.activeTexture(GL.TEXTURE0)
+        gl.bindTexture(GL.TEXTURE_CUBE_MAP, nebulaTexture)
+        gl.uniform1i(sNebula, 0)
         gl.bindVertexArray(0)
         gl.drawArrays(GL.TRIANGLES, 0, 3)
 
@@ -230,8 +288,9 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
         gl.uniform4f(tTer, env.groundY, env.terrainAmp, env.corridor, env.terrainStyle)
         gl.uniform4f(tTerCol, tint[0], tint[1], tint[2], 1f)
         gl.disable(GL.CULL_FACE)
-        gl.bindVertexArray(0)
-        gl.drawArrays(GL.TRIANGLES, 0, cols * rows * 6)
+        val grid = terrainGrid(cols, rows)
+        gl.bindVertexArray(grid.vao)
+        gl.drawElements(GL.TRIANGLES, grid.indexCount, GL.UNSIGNED_SHORT, 0)
         gl.enable(GL.CULL_FACE)
     }
 
@@ -257,8 +316,16 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
 
     fun release() {
         meshes.release()
+        for (g in grids) { gl.deleteVertexArray(g.vao); gl.deleteBuffer(g.ibo) }
+        grids.clear()
+        gl.deleteTexture(nebulaTexture)
         lit.release(); sky.release(); terrain.release(); particle.release()
     }
+}
+
+/** The baked nebula pixels are generated once per process and reused after a GL context loss. */
+internal object NebulaCubeCache {
+    val faces: Array<ByteArray> by lazy { NebulaCube.generate() }
 }
 
 /** Lazily uploads library meshes to the GPU the first time they are drawn. */

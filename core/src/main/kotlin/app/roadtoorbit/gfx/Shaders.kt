@@ -103,6 +103,7 @@ uniform vec3 uGroundCol;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
 uniform vec4 uSky; // x: star amount, y: nebula amount, z: time, w: sun disc size
+uniform samplerCube uNebula;
 out vec4 outColor;
 
 float hash13(vec3 p3) {
@@ -157,12 +158,7 @@ void main() {
         vec3 starCol = mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.9, 0.75), hash13(floor(dir * 55.0) + 3.0));
         col += starCol * s * uSky.x * 1.4;
         if (uSky.y > 0.001) {
-            vec3 q = dir * 4.4;
-            float wv = noise3(q * 0.9 + 11.0);
-            float n1 = noise3(q + wv * 2.2 + vec3(3.0, 1.0, 7.0));
-            float n2 = noise3(q * 2.6 + wv * 2.6 + vec3(9.0, 4.0, 2.0));
-            float neb = smoothstep(0.42, 0.78, n1 * 0.7 + n2 * 0.45);
-            col += mix(vec3(0.34, 0.10, 0.50), vec3(0.06, 0.38, 0.55), n2) * neb * uSky.y * 0.5;
+            col += texture(uNebula, dir).rgb * (uSky.y * 0.36);
         }
     }
     outColor = vec4(col, 1.0);
@@ -252,19 +248,12 @@ float terrainHeight(vec2 xs) {
 }
 
 void main() {
-    int cell = gl_VertexID / 6;
-    int corner = gl_VertexID - cell * 6;
-    int cols = int(uGrid.y);
-    int row = cell / cols;
-    int col = cell - row * cols;
-    // two CCW triangles per cell as seen from above: (0,0)(1,0)(1,1) and (0,0)(1,1)(0,1)
-    vec2 c;
-    if (corner == 0 || corner == 3) c = vec2(0.0, 0.0);
-    else if (corner == 1) c = vec2(1.0, 0.0);
-    else if (corner == 2 || corner == 4) c = vec2(1.0, 1.0);
-    else c = vec2(0.0, 1.0);
-    float gx = (float(col) + c.x - uGrid.y * 0.5) * uGrid.x;
-    float gr = float(row) + c.y;
+    // indexed grid: gl_VertexID is the vertex index (cols + 1 vertices per row)
+    int stride = int(uGrid.y) + 1;
+    int row = gl_VertexID / stride;
+    int col = gl_VertexID - row * stride;
+    float gx = (float(col) - uGrid.y * 0.5) * uGrid.x;
+    float gr = float(row);
     float route = (uGrid.w + gr) * uGrid.x;
     float z = uSlide + (uGrid.z - gr) * uGrid.x;
     vec3 world = vec3(gx, uTer.x + terrainHeight(vec2(gx, route)), z);
@@ -310,7 +299,8 @@ void main() {
     float amp = mix(max(uTer.y, 1.0), 30.0, clamp(st, 0.0, 1.0));
     float hn = clamp((vWorld.y - uTer.x) / amp, 0.0, 1.5);
     float blotch = vnoise(vWorld.xz * 0.045);
-    float speck = vnoise(vWorld.xz * 0.35);
+    float speck = 0.5;
+    if (vDist < 170.0) speck = vnoise(vWorld.xz * 0.35); // fine detail only where it can be seen
 
     vec3 grassA = vec3(0.27, 0.52, 0.20);
     vec3 grassB = vec3(0.40, 0.60, 0.22);
@@ -318,7 +308,8 @@ void main() {
     vec3 rock = vec3(0.47, 0.43, 0.40);
     vec3 snow = vec3(0.93, 0.95, 0.98);
     vec3 grass = mix(grassA, grassB, blotch);
-    grass = mix(grass, forest, smoothstep(0.25, 0.65, vnoise(vWorld.xz * 0.02 + 9.0)) * (1.0 - smoothstep(0.2, 0.5, hn)));
+    float woods = smoothstep(0.3, 0.7, blotch * 0.55 + 0.45 * (0.5 + 0.5 * sin(vWorld.x * 0.013 + vWorld.z * 0.0071)));
+    grass = mix(grass, forest, woods * (1.0 - smoothstep(0.2, 0.5, hn)));
     grass = mix(grass, rock, smoothstep(0.28, 0.5, hn + (blotch - 0.5) * 0.2));
     grass = mix(grass, snow, smoothstep(0.62, 0.78, hn + (speck - 0.5) * 0.08));
     float verge = 1.0 - smoothstep(7.0, 12.0, abs(vWorld.x));

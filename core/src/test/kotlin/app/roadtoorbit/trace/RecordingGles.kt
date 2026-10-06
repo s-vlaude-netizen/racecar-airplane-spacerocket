@@ -45,6 +45,14 @@ object Op {
     const val CLEAR_COLOR = 37
     const val CLEAR = 38
     const val DRAW_ARRAYS = 40
+    const val DRAW_ELEMENTS = 41
+    const val GEN_TEXTURE = 50
+    const val DELETE_TEXTURE = 51
+    const val ACTIVE_TEXTURE = 52
+    const val BIND_TEXTURE = 53
+    const val TEX_PARAMETER = 54
+    const val TEX_IMAGE_2D = 55
+    const val GENERATE_MIPMAP = 56
     const val FRAME_END = 99
 }
 
@@ -177,8 +185,24 @@ class RecordingGles(private val width: Int, private val height: Int) : Gles {
     override fun viewport(x: Int, y: Int, w: Int, h: Int) { op(Op.VIEWPORT); i(x); i(y); i(w); i(h) }
     override fun clearColor(r: Float, g: Float, b: Float, a: Float) { op(Op.CLEAR_COLOR); f(r); f(g); f(b); f(a) }
     override fun clear(mask: Int) { op(Op.CLEAR); i(mask) }
+    override fun genTexture(): Int { val id = next++; op(Op.GEN_TEXTURE); i(id); return id }
+    override fun deleteTexture(texture: Int) { op(Op.DELETE_TEXTURE); i(texture) }
+    override fun activeTexture(unit: Int) { op(Op.ACTIVE_TEXTURE); i(unit) }
+    override fun bindTexture(target: Int, texture: Int) { op(Op.BIND_TEXTURE); i(target); i(texture) }
+    override fun texParameteri(target: Int, pname: Int, value: Int) { op(Op.TEX_PARAMETER); i(target); i(pname); i(value) }
+    override fun texImage2D(target: Int, level: Int, internalFormat: Int, width: Int, height: Int, format: Int, type: Int, data: ByteBuffer?) {
+        op(Op.TEX_IMAGE_2D); i(target); i(level); i(internalFormat); i(width); i(height); i(format); i(type)
+        if (data != null) { i(1); blob(data, width * height * 4) } else i(0)
+    }
+    override fun generateMipmap(target: Int) { op(Op.GENERATE_MIPMAP); i(target) }
+
     override fun drawArrays(mode: Int, first: Int, count: Int) {
         op(Op.DRAW_ARRAYS); i(mode); i(first); i(count)
+        drawCalls++; drawCallsThisFrame++
+    }
+
+    override fun drawElements(mode: Int, count: Int, type: Int, offsetBytes: Int) {
+        op(Op.DRAW_ELEMENTS); i(mode); i(count); i(type); i(offsetBytes)
         drawCalls++; drawCallsThisFrame++
     }
 

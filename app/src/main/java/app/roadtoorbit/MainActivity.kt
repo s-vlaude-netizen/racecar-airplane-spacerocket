@@ -27,6 +27,17 @@ class MainActivity : Activity() {
     private lateinit var hud: HudView
     private lateinit var tilt: TiltController
 
+    private var scaleApplied = false
+
+    /** Renders the 3D view at a fraction of the screen resolution; the compositor scales it up. */
+    private fun setRenderScale(scale: Float) {
+        val w = glView.width
+        val h = glView.height
+        if (w <= 0 || h <= 0) return
+        if (scale >= 0.999f) glView.holder.setSizeFromLayout()
+        else glView.holder.setFixedSize((w * scale).toInt().coerceAtLeast(320), (h * scale).toInt().coerceAtLeast(180))
+    }
+
     private var keyLeft = false
     private var keyRight = false
     private var keyUp = false
@@ -41,15 +52,27 @@ class MainActivity : Activity() {
         prefs = Prefs(this)
         bridge = UiBridge().apply {
             soundOn = prefs.soundOn
+            musicOn = prefs.musicOn
             tiltOn = prefs.tiltOn
         }
-        audio = AudioEngine(applicationContext, bridge.soundOn)
-        renderer = GameRenderer(bridge, audio, prefs) { strong ->
-            glView.post {
-                glView.performHapticFeedback(if (strong) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.VIRTUAL_KEY)
+        audio = AudioEngine(applicationContext, bridge.soundOn, bridge.musicOn)
+        renderer = GameRenderer(
+            bridge, audio, prefs,
+            haptic = { strong ->
+                glView.post {
+                    glView.performHapticFeedback(if (strong) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.VIRTUAL_KEY)
+                }
+            },
+            applyRenderScale = { scale -> glView.post { setRenderScale(scale) } },
+        )
+        glView = GameView(this, renderer)
+        glView.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
+            // (re)apply a previously learned lower resolution once we know the view size
+            if (r - l > 0 && b - t > 0 && renderer.initialScale < 0.999f && !scaleApplied) {
+                scaleApplied = true
+                setRenderScale(renderer.initialScale)
             }
         }
-        glView = GameView(this, renderer)
         hud = HudView(this, bridge)
         tilt = TiltController(this, bridge)
 

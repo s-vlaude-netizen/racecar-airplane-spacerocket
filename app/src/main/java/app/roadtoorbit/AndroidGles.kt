@@ -75,6 +75,22 @@ class AndroidGles : Gles {
     override fun clearColor(r: Float, g: Float, b: Float, a: Float) = GLES30.glClearColor(r, g, b, a)
     override fun clear(mask: Int) = GLES30.glClear(mask)
 
+    override fun genTexture(): Int {
+        GLES30.glGenTextures(1, tmp, 0)
+        return tmp[0]
+    }
+    override fun deleteTexture(texture: Int) {
+        tmp[0] = texture
+        GLES30.glDeleteTextures(1, tmp, 0)
+    }
+    override fun activeTexture(unit: Int) = GLES30.glActiveTexture(unit)
+    override fun bindTexture(target: Int, texture: Int) = GLES30.glBindTexture(target, texture)
+    override fun texParameteri(target: Int, pname: Int, value: Int) = GLES30.glTexParameteri(target, pname, value)
+    override fun texImage2D(target: Int, level: Int, internalFormat: Int, width: Int, height: Int, format: Int, type: Int, data: ByteBuffer?) =
+        GLES30.glTexImage2D(target, level, internalFormat, width, height, 0, format, type, data)
+    override fun generateMipmap(target: Int) = GLES30.glGenerateMipmap(target)
+
     override fun drawArrays(mode: Int, first: Int, count: Int) = GLES30.glDrawArrays(mode, first, count)
+    override fun drawElements(mode: Int, count: Int, type: Int, offsetBytes: Int) = GLES30.glDrawElements(mode, count, type, offsetBytes)
     override fun getError(): Int = GLES30.glGetError()
 }

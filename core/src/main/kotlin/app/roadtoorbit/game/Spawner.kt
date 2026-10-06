@@ -26,7 +26,7 @@ internal class Spawner(private val g: Game) {
     private val zs: Float
         get() {
             val l = g.leg
-            return (l.speedStart + l.speedEnd) * 0.5f / 48f
+            return (l.speedStart + l.speedEnd) * 0.5f * g.difficulty.speedScale / 48f
         }
 
     fun fill() = update()
@@ -127,14 +127,14 @@ internal class Spawner(private val g: Game) {
         return w.size - 1
     }
 
-    private fun gap(d: Float): Float = Mathx.lerp(70f, 40f, d) * rng.range(0.9f, 1.25f)
+    private fun gap(d: Float): Float = Mathx.lerp(70f, 40f, d) * rng.range(0.9f, 1.25f) * g.difficulty.gapScale
 
     // ---- car leg ------------------------------------------------------------------------------
 
     private fun carPattern(s: Float, d: Float, hazards: Boolean): Float {
         if (!hazards) return if (rng.chance(0.3f)) nitro(s) else coinLine(s) + 10f
 
-        val needsRepair = g.player.health < Tuning.MAX_HEALTH
+        val needsRepair = g.player.health < g.maxHealth
         val w = floatArrayOf(
             2.4f, // coin line
             1.5f, // coin wave
@@ -290,7 +290,7 @@ internal class Spawner(private val g: Game) {
             0.6f + 2.4f * Mathx.smoothstep(0.1f, 0.5f, d), // storm cells (once above the clouds)
             0.4f + 2.0f * d, // jets
             0.9f, // orbs
-            if (g.player.health < Tuning.MAX_HEALTH) 0.7f else 0.05f, // repair
+            if (g.player.health < g.maxHealth) 0.7f else 0.05f, // repair
         )
         return when (pickWeighted(w)) {
             0 -> ringChain(s, rng.intRange(5, 7), 1f) + 30f
@@ -405,7 +405,7 @@ internal class Spawner(private val g: Game) {
             1.6f, // satellites
             2.0f, // crystal spiral
             0.8f + 2.2f * d, // meteor wall
-            if (g.player.health < Tuning.MAX_HEALTH) 0.7f else 0.05f, // repair
+            if (g.player.health < g.maxHealth) 0.7f else 0.05f, // repair
         )
         return when (pickWeighted(w)) {
             0 -> asteroidField(s, d) + gap(d)

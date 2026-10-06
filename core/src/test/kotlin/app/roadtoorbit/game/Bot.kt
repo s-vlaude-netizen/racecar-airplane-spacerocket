@@ -12,7 +12,24 @@ import kotlin.math.min
  * a set of candidate targets against the predicted hazard positions and steers for the safest (and
  * most rewarding) one. Good enough to prove each leg is winnable and to produce demo footage.
  */
-class Bot(private val game: Game, private val useBoost: Boolean = false, private val skill: Float = 1f) {
+class Bot(
+    private val game: Game,
+    private val useBoost: Boolean = false,
+    private val skill: Float = 1f,
+    /** Seconds between a decision and it taking effect (human reaction time). */
+    private val latency: Float = 0f,
+    /** Seconds between re-planning rounds. */
+    private val interval: Float = 0.1f,
+    /** Random steering error (0..1) imitating a thumb on glass. */
+    private val noise: Float = 0f,
+) {
+    private val rnd = java.util.Random(99)
+    private var clock = 0f
+    private var pendingX = 0f
+    private var pendingY = 0f
+    private var pendingAt = -1f
+    private var wobbleX = 0f
+    private var wobbleY = 0f
     private var targetX = 0f
     private var targetY = 0f
     private var decideIn = 0f
@@ -20,15 +37,29 @@ class Bot(private val game: Game, private val useBoost: Boolean = false, private
 
     fun control(input: GameInput, dt: Float) {
         val p = game.player
+        clock += dt
         decideIn -= dt
         if (decideIn <= 0f) {
-            decideIn = 0.1f
+            decideIn = interval
+            val oldX = targetX; val oldY = targetY
             plan()
+            if (latency > 0f) {
+                // the decision only takes effect after the reaction delay
+                pendingX = targetX; pendingY = targetY; pendingAt = clock + latency
+                targetX = oldX; targetY = oldY
+            }
+        }
+        if (pendingAt >= 0f && clock >= pendingAt) {
+            targetX = pendingX; targetY = pendingY; pendingAt = -1f
+        }
+        if (noise > 0f) {
+            wobbleX += (rnd.nextGaussian().toFloat() * noise - wobbleX) * 0.15f
+            wobbleY += (rnd.nextGaussian().toFloat() * noise - wobbleY) * 0.15f
         }
         val leg = game.leg
         val gainX = 0.55f
-        input.steerX = ((targetX - p.x) * gainX).coerceIn(-1f, 1f)
-        input.steerY = if (leg.mode == VehicleMode.CAR) 0f else ((targetY - p.y) * 0.6f).coerceIn(-1f, 1f)
+        input.steerX = ((targetX - p.x) * gainX + wobbleX).coerceIn(-1f, 1f)
+        input.steerY = if (leg.mode == VehicleMode.CAR) 0f else ((targetY - p.y) * 0.6f + wobbleY).coerceIn(-1f, 1f)
         input.boost = useBoost && p.boostMeter > 0.5f
         if (game.transformReady && game.distanceToGate < transformAt) input.requestTransform()
     }

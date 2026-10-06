@@ -9,7 +9,9 @@ const Op = {
   DISABLE_VERTEX_ATTRIB: 20, VERTEX_ATTRIB_POINTER: 21, UNIFORM_1I: 22, UNIFORM_1F: 23,
   UNIFORM_2F: 24, UNIFORM_3F: 25, UNIFORM_4F: 26, UNIFORM_MATRIX_3: 27, UNIFORM_MATRIX_4: 28,
   ENABLE: 30, DISABLE: 31, DEPTH_FUNC: 32, DEPTH_MASK: 33, BLEND_FUNC: 34, CULL_FACE: 35,
-  VIEWPORT: 36, CLEAR_COLOR: 37, CLEAR: 38, DRAW_ARRAYS: 40, FRAME_END: 99,
+  VIEWPORT: 36, CLEAR_COLOR: 37, CLEAR: 38, DRAW_ARRAYS: 40, DRAW_ELEMENTS: 41,
+  GEN_TEXTURE: 50, DELETE_TEXTURE: 51, ACTIVE_TEXTURE: 52, BIND_TEXTURE: 53, TEX_PARAMETER: 54, TEX_IMAGE_2D: 55,
+  GENERATE_MIPMAP: 56, FRAME_END: 99,
 };
 
 window.replayTrace = function (base64, captureFrames) {
@@ -96,6 +98,22 @@ window.replayTrace = function (base64, captureFrames) {
         if (capturing) { gl.drawArrays(mode, first, count); draws++; }
         break;
       }
+      case Op.DRAW_ELEMENTS: {
+        const mode = i32(), count = i32(), type = i32(), off = i32();
+        if (capturing) { gl.drawElements(mode, count, type, off); draws++; }
+        break;
+      }
+      case Op.GEN_TEXTURE: { const id = i32(); objs.set(id, gl.createTexture()); break; }
+      case Op.DELETE_TEXTURE: { const id = i32(); gl.deleteTexture(objs.get(id)); break; }
+      case Op.ACTIVE_TEXTURE: gl.activeTexture(i32()); break;
+      case Op.BIND_TEXTURE: { const t = i32(); gl.bindTexture(t, get(i32())); break; }
+      case Op.TEX_PARAMETER: { const t = i32(), pn = i32(), v = i32(); gl.texParameteri(t, pn, v); break; }
+      case Op.TEX_IMAGE_2D: {
+        const t = i32(), lvl = i32(), ifmt = i32(), w = i32(), h = i32(), fmt = i32(), type = i32(), has = i32();
+        if (has) gl.texImage2D(t, lvl, ifmt, w, h, 0, fmt, type, blob()); else gl.texImage2D(t, lvl, ifmt, w, h, 0, fmt, type, null);
+        break;
+      }
+      case Op.GENERATE_MIPMAP: gl.generateMipmap(i32()); break;
       case Op.FRAME_END: {
         if (capturing) {
           const err = gl.getError();

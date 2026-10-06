@@ -74,7 +74,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     private var pressedButton = -1
     private var downX = 0f
     private var downY = 0f
-    private val pills = Array(2) { RectF() }
+    private val pills = Array(4) { RectF() }
 
     // cached formatted numbers (avoid re-allocating strings every frame)
     private var scoreCache = -1
@@ -109,7 +109,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         val m = 3f * u
         pause[0] = w - m - insetR - 4.2f * u; pause[1] = m + insetT + 4.2f * u; pause[2] = 5.2f * u
         boost[0] = w - m - insetR - 11.5f * u; boost[1] = h - m - insetB - 11f * u; boost[2] = 10f * u
-        xform[0] = w - m - insetR - 11.5f * u; xform[1] = boost[1] - 22.5f * u; xform[2] = 11.5f * u
+        xform[0] = w - m - insetR - 11.5f * u; xform[1] = boost[1] - 24.8f * u; xform[2] = 11.5f * u
         stickHome[0] = m + insetL + 15f * u; stickHome[1] = h - m - insetB - 15f * u
     }
 
@@ -164,6 +164,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         if (vignette > 0.02f) drawVignette(c, Color.rgb(255, 30, 30), vignette.coerceAtMost(1f))
 
         if (s.phase != Phase.FINALE && s.phase != Phase.VICTORY && s.phase != Phase.GAME_OVER) {
+            drawScrims(c)
             drawTopBar(c, s)
             drawSpeedometer(c, s)
         }
@@ -176,8 +177,19 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     private fun drawVignette(c: Canvas, color: Int, amount: Float) {
         val r = hypot(w, h) * 0.6f
         val a = (amount * 190).toInt().coerceIn(0, 255)
+        fill.color = Color.WHITE
         fill.shader = RadialGradient(w / 2, h / 2, r, intArrayOf(Color.argb(0, Color.red(color), Color.green(color), Color.blue(color)), Color.argb(a, Color.red(color), Color.green(color), Color.blue(color))), floatArrayOf(0.45f, 1f), Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, w, h, fill)
+        fill.shader = null
+    }
+
+    /** Soft dark gradients at the top and bottom edges keep white text readable over bright clouds. */
+    private fun drawScrims(c: Canvas) {
+        fill.color = Color.WHITE
+        fill.shader = LinearGradient(0f, 0f, 0f, 22f * u, Color.argb(95, 6, 10, 28), Color.argb(0, 6, 10, 28), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w, 22f * u, fill)
+        fill.shader = LinearGradient(0f, h, 0f, h - 16f * u, Color.argb(85, 6, 10, 28), Color.argb(0, 6, 10, 28), Shader.TileMode.CLAMP)
+        c.drawRect(0f, h - 16f * u, w, h, fill)
         fill.shader = null
     }
 
@@ -250,7 +262,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         if (s.speedKmh != speedCache) { speedCache = s.speedKmh; speedText = String.format(Locale.US, "%,d", s.speedKmh) }
         val y = h - 3f * u - insetB
         label(c, speedText, w / 2 + 1f * u, y - 2f * u, 6f * u, Color.WHITE, Paint.Align.RIGHT, sansItalic)
-        label(c, " KM/H", w / 2 + 1f * u, y - 2f * u, 2.4f * u, Color.argb(200, 170, 200, 255), Paint.Align.LEFT, sans)
+        label(c, " KM/H", w / 2 + 1f * u, y - 2f * u, 2.4f * u, Color.argb(235, 235, 243, 255), Paint.Align.LEFT, sans)
         if (s.legIndex > 0) {
             if (abs(s.altitudeKm - altCache) > 0.05f) {
                 altCache = s.altitudeKm
@@ -302,6 +314,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         val pulse = if (ready) 1f + 0.07f * sin(t() * 9f) else 1f
         val r = xform[2] * pulse * (if (pressed) 0.93f else 1f)
         if (ready) {
+            fill.color = Color.WHITE
             fill.shader = RadialGradient(xform[0], xform[1], r * 1.5f, intArrayOf(Color.argb(150, 255, 77, 210), Color.argb(0, 255, 77, 210)), floatArrayOf(0.55f, 1f), Shader.TileMode.CLAMP)
             c.drawCircle(xform[0], xform[1], r * 1.5f, fill)
             fill.shader = LinearGradient(xform[0], xform[1] - r, xform[0], xform[1] + r, Color.rgb(255, 98, 220), Color.rgb(90, 90, 255), Shader.TileMode.CLAMP)
@@ -409,9 +422,10 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         val pulse = 0.5f + 0.5f * sin(t() * 3.2f)
         val pw = 46f * u
         val ph = 10f * u
-        val py = h - insetB - 24f * u
+        val py = h - insetB - 30f * u
         rect.set(cx - pw / 2, py - ph / 2, cx + pw / 2, py + ph / 2)
         val pressed = pressedButton == PLAY_HIT
+        fill.color = Color.WHITE
         fill.shader = LinearGradient(rect.left, rect.top, rect.right, rect.bottom, Color.rgb(255, 150, 60), Color.rgb(255, 77, 150), Shader.TileMode.CLAMP)
         if (pressed) { rect.inset(0.8f * u, 0.5f * u) }
         c.drawRoundRect(rect, ph / 2, ph / 2, fill)
@@ -423,27 +437,46 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
 
         if (s.bestScore > 0) {
             if (s.bestScore != bestCache) { bestCache = s.bestScore; bestText = String.format(Locale.US, "%,d", s.bestScore) }
-            label(c, "BEST  $bestText", cx, py + ph / 2 + 5f * u, 3.2f * u, Color.argb(230, 255, 224, 130), Paint.Align.CENTER, sans)
+            label(c, "BEST  $bestText", cx, py + ph / 2 + 4.6f * u, 3.2f * u, Color.argb(230, 255, 224, 130), Paint.Align.CENTER, sans)
         }
+        // difficulty selector
+        val dw = 30f * u
+        val dh = 6.2f * u
+        val dy = py + ph / 2 + 11.5f * u
+        rect.set(cx - dw / 2, dy - dh / 2, cx + dw / 2, dy + dh / 2)
+        pills[3].set(rect)
+        val diff = s.difficulty
+        val diffColor = when (diff) {
+            app.roadtoorbit.game.Difficulty.EASY -> Color.argb(190, 40, 140, 80)
+            app.roadtoorbit.game.Difficulty.NORMAL -> Color.argb(190, 30, 110, 170)
+            app.roadtoorbit.game.Difficulty.HARD -> Color.argb(200, 170, 40, 50)
+        }
+        drawPillColored(c, rect, "DIFFICULTY: ${diff.label}", diffColor, 3)
         label(c, "Drag the left side to steer  ·  Hold BOOST  ·  Tap TRANSFORM in the glowing zone", cx, h - insetB - 3f * u, 2.1f * u, Color.argb(190, 220, 225, 255), Paint.Align.CENTER, light)
 
-        // settings pills (bottom-left / right)
-        val pw2 = 20f * u
+        // settings pills: sound + music bottom-left, steering mode bottom-right
+        val pw2 = 21f * u
         val ph2 = 6.2f * u
-        val soundOn = bridge.soundOn
-        rect.set(m + insetL, h - insetB - m - ph2 - 6f * u, m + insetL + pw2, h - insetB - m - 6f * u)
+        val rowBottom = h - insetB - m - 6f * u
+        rect.set(m + insetL, rowBottom - ph2 * 2 - 1.6f * u, m + insetL + pw2, rowBottom - ph2 - 1.6f * u)
         pills[0].set(rect)
-        drawPill(c, rect, if (soundOn) "SOUND ON" else "SOUND OFF", soundOn, 0)
-        val tiltOn = bridge.tiltOn
-        rect.set(w - m - insetR - pw2 - 4f * u, h - insetB - m - ph2 - 6f * u, w - m - insetR, h - insetB - m - 6f * u)
+        drawPill(c, rect, if (bridge.soundOn) "SOUND ON" else "SOUND OFF", bridge.soundOn, 0)
+        rect.set(m + insetL, rowBottom - ph2, m + insetL + pw2, rowBottom)
         pills[1].set(rect)
-        drawPill(c, rect, if (tiltOn) "TILT STEERING" else "TOUCH STEERING", tiltOn, 1)
+        drawPill(c, rect, if (bridge.musicOn) "MUSIC ON" else "MUSIC OFF", bridge.musicOn, 1)
+        val tiltOn = bridge.tiltOn
+        rect.set(w - m - insetR - pw2 - 4f * u, rowBottom - ph2, w - m - insetR, rowBottom)
+        pills[2].set(rect)
+        drawPill(c, rect, if (tiltOn) "TILT STEERING" else "TOUCH STEERING", tiltOn, 2)
     }
 
-    private fun drawPill(c: Canvas, r: RectF, text: String, on: Boolean, index: Int) {
+    private fun drawPill(c: Canvas, r: RectF, text: String, on: Boolean, index: Int) =
+        drawPillColored(c, r, text, if (on) Color.argb(190, 20, 120, 150) else Color.argb(150, 20, 26, 54), index)
+
+    private fun drawPillColored(c: Canvas, r: RectF, text: String, color: Int, index: Int) {
         val pressed = pressedButton == PILL_HIT + index
         fill.shader = null
-        fill.color = if (on) Color.argb(190, 20, 120, 150) else Color.argb(150, 20, 26, 54)
+        fill.color = color
         c.drawRoundRect(r, r.height() / 2, r.height() / 2, fill)
         line.strokeWidth = 0.35f * u
         line.color = Color.argb(if (pressed) 255 else 170, 255, 255, 255)
@@ -464,7 +497,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     private fun drawGameOver(c: Canvas, s: HudState) {
         dim(c, 120)
         label(c, "CRASHED!", w / 2, h * 0.24f, 12f * u, Color.rgb(255, 110, 100), Paint.Align.CENTER, sansItalic)
-        label(c, s.legName, w / 2, h * 0.32f, 3.4f * u, Color.argb(220, 200, 215, 255), Paint.Align.CENTER, sans, spacing = 0.15f)
+        label(c, s.legName + "  ·  " + s.difficulty.label, w / 2, h * 0.32f, 3.4f * u, Color.argb(220, 200, 215, 255), Paint.Align.CENTER, sans, spacing = 0.15f)
         if (s.score != scoreCache) { scoreCache = s.score; scoreText = String.format(Locale.US, "%,d", s.score) }
         label(c, "SCORE  $scoreText", w / 2, h * 0.43f, 6f * u, Color.WHITE, Paint.Align.CENTER, sansItalic)
         if (s.newBest) label(c, "NEW BEST!", w / 2, h * 0.50f, 4f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)
@@ -477,6 +510,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     private fun drawVictory(c: Canvas, s: HudState) {
         dim(c, 110)
         label(c, "MISSION COMPLETE", w / 2, h * 0.17f, 10.5f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)
+        label(c, s.difficulty.label, w / 2, h * 0.225f, 2.8f * u, Color.argb(220, 200, 215, 255), Paint.Align.CENTER, sans, spacing = 0.2f)
         // stars
         for (i in 0 until 3) {
             val cx = w / 2 + (i - 1) * 11f * u
@@ -528,6 +562,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
             if (pressed) rect.inset(0.7f * u, 0.5f * u)
             val rad = rect.height() / 2
             if (b.primary) {
+                fill.color = Color.WHITE
                 fill.shader = LinearGradient(rect.left, rect.top, rect.right, rect.bottom, Color.rgb(255, 150, 60), Color.rgb(255, 77, 150), Shader.TileMode.CLAMP)
             } else {
                 fill.shader = null
@@ -555,8 +590,8 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         txt.style = Paint.Style.FILL
         txt.shader = null
         val a = (Color.alpha(color) * alpha).toInt().coerceIn(0, 255)
-        txt.color = Color.argb((a * 0.55f).toInt(), 0, 0, 20)
-        c.drawText(s, x + size * 0.04f, y + size * 0.06f, txt)
+        txt.color = Color.argb((a * 0.7f).toInt(), 0, 0, 20)
+        c.drawText(s, x + size * 0.05f, y + size * 0.07f, txt)
         txt.color = Color.argb(a, Color.red(color), Color.green(color), Color.blue(color))
         c.drawText(s, x, y, txt)
         txt.letterSpacing = 0f
@@ -760,7 +795,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     /** Index of the overlay/menu element under (x, y): button index, PILL_HIT + n, PLAY_HIT or -1. */
     private fun hitButton(x: Float, y: Float, s: HudState): Int {
         if (s.phase == Phase.MENU && !bridge.paused) {
-            for (i in 0 until 2) if (pills[i].contains(x, y)) return PILL_HIT + i
+            for (i in 0 until pills.size) if (pills[i].contains(x, y)) return PILL_HIT + i
             return PLAY_HIT
         }
         for (i in 0 until buttonCount) if (buttons[i].r.contains(x, y)) return i
@@ -771,7 +806,9 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         when {
             index == PLAY_HIT -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.PLAY) }
             index == PILL_HIT -> bridge.post(UiAction.TOGGLE_SOUND)
-            index == PILL_HIT + 1 -> { bridge.post(UiAction.TOGGLE_TILT); bridge.tiltRecalibrate = true }
+            index == PILL_HIT + 1 -> bridge.post(UiAction.TOGGLE_MUSIC)
+            index == PILL_HIT + 2 -> { bridge.post(UiAction.TOGGLE_TILT); bridge.tiltRecalibrate = true }
+            index == PILL_HIT + 3 -> bridge.post(UiAction.CYCLE_DIFFICULTY)
             index in 0 until buttonCount -> when (buttons[index].id) {
                 BTN_RESUME -> bridge.paused = false
                 BTN_RESTART -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.PLAY) }

@@ -91,6 +91,12 @@ class Game(seed: Long = 1L) {
         private set
 
     var bestScore = 0
+
+    /** Chosen on the menu; applies from the next [startRun]. */
+    var difficulty = Difficulty.NORMAL
+
+    val maxHealth: Int get() = difficulty.maxHealth
+
     var newBest = false
         private set
     var stars = 0
@@ -182,7 +188,7 @@ class Game(seed: Long = 1L) {
         particles.clear()
         popups.clear()
         xf.active = false
-        player.reset(VehicleMode.CAR, 0f, 0f)
+        player.reset(VehicleMode.CAR, 0f, 0f, maxHealth)
         player.visual.flame = 0f
     }
 
@@ -196,7 +202,7 @@ class Game(seed: Long = 1L) {
             VehicleMode.PLANE -> Tuning.PLANE_TAKEOFF_Y
             VehicleMode.ROCKET -> 14f
         }
-        player.reset(l.mode, startY, if (index == 0) 0f else l.speedStart)
+        player.reset(l.mode, startY, if (index == 0) 0f else l.speedStart * difficulty.speedScale, maxHealth)
         xf.active = false
         spawnCursor = l.firstPatternAt
         decorCursor = -40f
@@ -296,6 +302,7 @@ class Game(seed: Long = 1L) {
             sfx(Sfx.BEEP)
         }
         player.visual.time = clock
+        player.visual.visible = true
         player.visual.flame = if (player.mode == VehicleMode.CAR) 0.1f else 0.6f
         particlesUpdate(dt, 0f)
         if (remaining <= 0f) {
@@ -326,7 +333,7 @@ class Game(seed: Long = 1L) {
         val adv = player.speed * dt
         legDist += adv
         travelled += adv
-        scoreAcc += adv * Tuning.SCORE_PER_METRE
+        scoreAcc += adv * Tuning.SCORE_PER_METRE * difficulty.scoreScale
         if (scoreAcc >= 1f) {
             val whole = scoreAcc.toInt()
             score += whole
@@ -347,6 +354,7 @@ class Game(seed: Long = 1L) {
         val p = player
         val l = leg
         p.invuln = max(0f, p.invuln - dt)
+        p.blink = max(0f, p.blink - dt)
         p.speedPenalty = min(1f, p.speedPenalty + Tuning.PENALTY_RECOVERY * dt)
 
         val wantsBoost = input.boost && p.boostMeter > 0.02f
@@ -356,7 +364,7 @@ class Game(seed: Long = 1L) {
         p.boostFactor = Mathx.damp(p.boostFactor, if (wantsBoost) 1f else 0f, 6f, dt)
 
         val prog = Mathx.clamp01(legDist / l.length)
-        val base = Mathx.lerp(l.speedStart, l.speedEnd, prog)
+        val base = Mathx.lerp(l.speedStart, l.speedEnd, prog) * difficulty.speedScale
         val target = base * (1f + l.boostPower * p.boostFactor) * p.speedPenalty
         val accel = if (l.mode == VehicleMode.CAR) 26f else 34f
         p.speed = Mathx.approach(p.speed, target, accel * dt)
@@ -390,7 +398,7 @@ class Game(seed: Long = 1L) {
             VehicleMode.ROCKET -> 0.7f + 0.5f * p.boostFactor
         }
         v.flame = flameBase
-        v.visible = p.alive && !(p.invuln > 0f && !xf.active && ((clock * 14f).toInt() % 2 == 0))
+        v.visible = p.alive && !(p.blink > 0f && ((clock * 14f).toInt() % 2 == 0))
     }
 
     private fun stepCar(dt: Float, input: GameInput) {
@@ -558,7 +566,7 @@ class Game(seed: Long = 1L) {
             if (e.minGap < NEAR_MISS_GAP && e.age > 0.5f && player.invuln <= 0f && !xf.active) {
                 nearMisses++
                 val bonus = Tuning.NEAR_MISS_SCORE
-                score += bonus
+                score += scaled(bonus)
                 player.boostMeter = Mathx.clamp01(player.boostMeter + 0.04f)
                 popup("CLOSE CALL +$bonus", COLOR_ACCENT, 0.9f, false)
                 sfx(Sfx.NEAR_MISS)
@@ -583,6 +591,7 @@ class Game(seed: Long = 1L) {
         lastHit = e
         lastHitLegDist = legDist
         p.invuln = Tuning.INVULN_AFTER_HIT
+        p.blink = Tuning.INVULN_AFTER_HIT
         p.speedPenalty = min(p.speedPenalty, Tuning.HIT_SPEED_PENALTY)
         shake = 1f
         damageFlash = 1f
@@ -607,21 +616,21 @@ class Game(seed: Long = 1L) {
         when (e.kind) {
             Kind.COIN -> {
                 coins++
-                score += Tuning.COIN_SCORE
+                score += scaled(Tuning.COIN_SCORE)
                 sfx(Sfx.COIN)
                 particles.burst(e.x, ey, e.z, 8, 5f, 0.45f, 0.35f, Col.rgb(0xFFE066), Col.rgb(0xFF9A00), true)
             }
             Kind.NITRO, Kind.ORB, Kind.CRYSTAL -> {
                 player.boostMeter = Mathx.clamp01(player.boostMeter + Tuning.NITRO_GAIN * (if (e.kind == Kind.CRYSTAL) 0.6f else 1f))
-                score += if (e.kind == Kind.CRYSTAL) 60 else 50
+                score += scaled(if (e.kind == Kind.CRYSTAL) 60 else 50)
                 sfx(if (e.kind == Kind.CRYSTAL) Sfx.COIN else Sfx.NITRO)
                 val c = if (e.kind == Kind.NITRO) Col.rgb(0x4FD6FF) else Col.rgb(0x7DF9FF)
                 particles.burst(e.x, ey, e.z, 14, 8f, 0.6f, 0.5f, c, Col.rgb(0x1060FF), true)
                 if (e.kind != Kind.CRYSTAL) popup("NITRO!", COLOR_ACCENT, 0.7f, false)
             }
             Kind.REPAIR -> {
-                if (player.health < Tuning.MAX_HEALTH) player.health++
-                score += 30
+                if (player.health < maxHealth) player.health++
+                score += scaled(30)
                 sfx(Sfx.REPAIR)
                 popup("REPAIRED", COLOR_GOOD, 0.9f, false)
                 particles.burst(e.x, ey, e.z, 16, 6f, 0.8f, 0.5f, Col.rgb(0x7DFF9A), Col.rgb(0x10A040), true)
@@ -635,7 +644,7 @@ class Game(seed: Long = 1L) {
         ringStreak++
         rings++
         val mult = min(ringStreak, 5)
-        val bonus = Tuning.RING_SCORE * mult
+        val bonus = scaled(Tuning.RING_SCORE * mult)
         score += bonus
         player.boostMeter = Mathx.clamp01(player.boostMeter + 0.07f)
         sfx(Sfx.RING)
@@ -697,7 +706,7 @@ class Game(seed: Long = 1L) {
         val next = Tuning.LEGS[legIndex + 1]
         val remaining = from.length - legDist
         perfectLaunch = manual && remaining <= Tuning.PERFECT_WINDOW
-        val bonus = if (perfectLaunch) Tuning.PERFECT_TRANSFORM_SCORE else Tuning.TRANSFORM_SCORE
+        val bonus = scaled(if (perfectLaunch) Tuning.PERFECT_TRANSFORM_SCORE else Tuning.TRANSFORM_SCORE)
         score += bonus
         popup(if (perfectLaunch) "PERFECT LAUNCH! +$bonus" else "TRANSFORM! +$bonus", if (perfectLaunch) COLOR_GOLD else COLOR_ACCENT, 1.8f, true)
 
@@ -844,12 +853,12 @@ class Game(seed: Long = 1L) {
     private fun completeRun() {
         phase = Phase.VICTORY
         phaseTime = 0f
-        val healthBonus = player.health * Tuning.HEALTH_BONUS
-        val timeBonus = max(0, ((330f - runTime) * 12f).toInt())
+        val healthBonus = scaled(player.health * Tuning.HEALTH_BONUS * 3 / maxHealth)
+        val timeBonus = scaled(max(0, ((330f - runTime) * 12f).toInt()))
         val base = score
         score += healthBonus + timeBonus
         lastScoreBreakdown = intArrayOf(base, healthBonus, timeBonus)
-        stars = Tuning.STAR_THRESHOLDS.count { score >= it }
+        stars = Tuning.STAR_THRESHOLDS.count { score >= scaled(it) }
         newBest = score > bestScore
         if (newBest) bestScore = score
         sfx(Sfx.VICTORY)
@@ -960,6 +969,9 @@ class Game(seed: Long = 1L) {
             )
         }
     }
+
+    /** Applies the difficulty's score multiplier to a bonus. */
+    private fun scaled(points: Int): Int = (points * difficulty.scoreScale).toInt()
 
     internal fun popup(text: String, color: Int, ttl: Float, big: Boolean) {
         if (popups.size >= 5) popups.removeAt(0)

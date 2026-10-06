@@ -3,6 +3,7 @@ package app.roadtoorbit
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import app.roadtoorbit.audio.AudioEngine
+import app.roadtoorbit.game.Difficulty
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.game.Sfx
@@ -21,15 +22,28 @@ class GameRenderer(
     private val audio: AudioEngine,
     private val prefs: Prefs,
     private val haptic: (Boolean) -> Unit,
+    private val applyRenderScale: (Float) -> Unit,
 ) : GLSurfaceView.Renderer {
-    val game = Game(System.nanoTime()).also { it.bestScore = prefs.bestScore }
+    val game = Game(System.nanoTime()).also {
+        it.difficulty = Difficulty.values()[prefs.difficulty]
+        it.bestScore = prefs.best(it.difficulty)
+    }
 
-    private val library = MeshLibrary()
+    private val library = MeshLibrary().also { lib ->
+        // generate all procedural geometry off the GL thread so nothing hitches mid-game
+        Thread({ lib.prewarm() }, "mesh-prewarm").apply { isDaemon = true; start() }
+    }
     private var scene: SceneRenderer? = null
     private var width = 1
     private var height = 1
     private var lastNanos = 0L
     private var failed = false
+
+    // adaptive resolution: if frames stay slow, render fewer pixels (the HUD stays sharp)
+    private var scale = prefs.renderScale
+    private var avgDt = 1f / 60f
+    private var slowFrames = 0
+    private var settleFrames = 120
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         try {
@@ -61,6 +75,7 @@ class GameRenderer(
         val now = System.nanoTime()
         val dt = if (lastNanos == 0L) 1f / 60f else ((now - lastNanos) / 1e9f).coerceIn(0.0005f, 0.05f)
         lastNanos = now
+        adaptResolution(dt)
 
         while (true) {
             val a = bridge.actions.poll() ?: break
@@ -79,7 +94,7 @@ class GameRenderer(
             }
             audio.updateEngine(game)
             if (game.phase == Phase.VICTORY || game.phase == Phase.GAME_OVER) {
-                if (game.bestScore > prefs.bestScore) prefs.bestScore = game.bestScore
+                if (game.bestScore > prefs.best(game.difficulty)) prefs.setBest(game.difficulty, game.bestScore)
             }
         } else {
             audio.silenceEngine()
@@ -88,6 +103,25 @@ class GameRenderer(
         bridge.hud.publish(game)
         if (!bridge.ready) bridge.ready = true
     }
+
+    private fun adaptResolution(dt: Float) {
+        if (bridge.paused || game.phase != Phase.RUN) return
+        if (settleFrames > 0) { settleFrames--; return }
+        avgDt += (dt - avgDt) * 0.05f
+        // sustained ~35 fps or worse → step the resolution down (never back up, to avoid flip-flopping)
+        if (avgDt > 0.028f && scale > MIN_SCALE) slowFrames++ else slowFrames = 0
+        if (slowFrames > 150) {
+            slowFrames = 0
+            scale = (scale - 0.15f).coerceAtLeast(MIN_SCALE)
+            settleFrames = 180
+            avgDt = 1f / 60f
+            prefs.renderScale = scale
+            applyRenderScale(scale)
+        }
+    }
+
+    /** The scale to apply as soon as the surface exists (restored from a previous session). */
+    val initialScale: Float get() = scale
 
     private fun handle(a: UiAction) {
         when (a) {
@@ -117,7 +151,18 @@ class GameRenderer(
                 prefs.tiltOn = bridge.tiltOn
                 audio.play(Sfx.UI)
             }
-            UiAction.CALIBRATE_TILT -> Unit
+            UiAction.CYCLE_DIFFICULTY -> {
+                game.difficulty = game.difficulty.next()
+                prefs.difficulty = game.difficulty.ordinal
+                game.bestScore = prefs.best(game.difficulty)
+                audio.play(Sfx.UI)
+            }
+            UiAction.TOGGLE_MUSIC -> {
+                bridge.musicOn = !bridge.musicOn
+                prefs.musicOn = bridge.musicOn
+                audio.setMusicEnabled(bridge.musicOn)
+                audio.play(Sfx.UI)
+            }
         }
     }
 
@@ -129,5 +174,9 @@ class GameRenderer(
     fun release() {
         scene?.release()
         scene = null
+    }
+
+    private companion object {
+        const val MIN_SCALE = 0.55f
     }
 }
