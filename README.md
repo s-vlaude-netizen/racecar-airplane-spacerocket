@@ -45,7 +45,7 @@ in landscape.
 | 2 · **Sky Rally** | an airplane | Fly through glowing rings, dodge balloons, rock spires, storms and jets; climb to the edge of space. |
 | 3 · **Orbit Run** | a rocket | Thread asteroid fields, rings and meteor walls, collect crystals, reach the Moon. |
 
-* **Steer** – drag anywhere on the left half of the screen (a floating stick). Left/right in the car, left/right + up/down in the air and in space. Optional **tilt steering** on the menu: your attitude when the run starts is neutral; tilt the right edge down to steer right, the top edge toward you to climb. A finger on the stick always wins.
+* **Steer** – drag anywhere on the left half of the screen (a floating stick). Left/right in the car, left/right + up/down in the air and in space. Optional **tilt steering** on the menu: your attitude at GO is neutral (it follows your grip during the countdown, so settle in however you like); tilt the right edge down to steer right, the top edge toward you to climb. A finger on the stick always wins.
 * **Boost** – hold the BOOST button. Nitro, orbs and crystals refill the meter.
 * **Transform** – near the end of the first two stages a glowing **transform zone** opens (guide arches / portal rings). Tap **TRANSFORM** while inside it. Pressing within the last 70 m of the gate is a **PERFECT LAUNCH** (+1000). If you forget, the vehicle transforms automatically at the gate, so you can never get stuck.
 * **Shields** – you have 3 per stage. A hit costs one and gives you a moment of invulnerability; wrenches repair. Lose all of them and you can retry the stage from its start.
