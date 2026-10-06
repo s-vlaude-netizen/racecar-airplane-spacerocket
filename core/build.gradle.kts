@@ -20,13 +20,31 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+// Knobs for the dev tooling (tools/render-check): forwarded to the test JVM when given as -Dkey=value.
+val toolingProps = listOf("simVerbose", "traceDir", "traceW", "traceH", "hudStatesDir", "audioDir")
+
 tasks.test {
-    System.getProperty("simVerbose")?.let { systemProperty("simVerbose", it) }
-    System.getProperty("traceDir")?.let { systemProperty("traceDir", it) }
+    for (key in toolingProps) System.getProperty(key)?.let { systemProperty(key, it) }
     // Rendering / simulation tests can be a little heavy; give them room.
     maxHeapSize = "1g"
     testLogging {
         events("failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
+}
+
+// Lets the bot play the whole game and records the renderer's GL commands plus HUD snapshots (build/traces)
+// at screenshot size. Its value is the files it writes, so it is never up to date and never cached.
+tasks.register<Test>("journeyTrace") {
+    group = "verification"
+    description = "Records a full bot playthrough for tools/render-check/screenshots.sh"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    filter { includeTestsMatching("*JourneyTraceTest") }
+    for (key in toolingProps) System.getProperty(key)?.let { systemProperty(key, it) }
+    systemProperty("traceW", System.getProperty("traceW") ?: "1600")
+    systemProperty("traceH", System.getProperty("traceH") ?: "740")
+    maxHeapSize = "1g"
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
 }

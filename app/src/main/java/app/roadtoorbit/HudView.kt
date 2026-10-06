@@ -105,6 +105,21 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         return super.onApplyWindowInsets(insets)
     }
 
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        super.onLayout(changed, l, t, r, b)
+        if (android.os.Build.VERSION.SDK_INT >= 29 && changed) {
+            // keep the system back-swipe from stealing drags meant for the stick and the boost button;
+            // Android honours at most 200 dp of exclusion per screen edge
+            val d = resources.displayMetrics.density
+            val strip = (64 * d).toInt()
+            val tall = (200 * d).toInt()
+            systemGestureExclusionRects = listOf(
+                android.graphics.Rect(0, (b - t) - tall, strip, b - t),
+                android.graphics.Rect((r - l) - strip, (b - t) - tall, r - l, b - t),
+            )
+        }
+    }
+
     private fun layoutControls() {
         val m = 3f * u
         pause[0] = w - m - insetR - 4.2f * u; pause[1] = m + insetT + 4.2f * u; pause[2] = 5.2f * u
@@ -188,8 +203,8 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         fill.color = Color.WHITE
         fill.shader = LinearGradient(0f, 0f, 0f, 22f * u, Color.argb(95, 6, 10, 28), Color.argb(0, 6, 10, 28), Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, w, 22f * u, fill)
-        fill.shader = LinearGradient(0f, h, 0f, h - 16f * u, Color.argb(85, 6, 10, 28), Color.argb(0, 6, 10, 28), Shader.TileMode.CLAMP)
-        c.drawRect(0f, h - 16f * u, w, h, fill)
+        fill.shader = LinearGradient(0f, h, 0f, h - 20f * u, Color.argb(150, 6, 10, 28), Color.argb(0, 6, 10, 28), Shader.TileMode.CLAMP)
+        c.drawRect(0f, h - 20f * u, w, h, fill)
         fill.shader = null
     }
 
@@ -268,7 +283,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
                 altCache = s.altitudeKm
                 altText = if (s.altitudeKm >= 1000f) String.format(Locale.US, "%,.0f km", s.altitudeKm) else String.format(Locale.US, "%.1f km", s.altitudeKm)
             }
-            label(c, "ALT $altText", w / 2, y - 8.4f * u, 2.6f * u, Color.argb(220, 170, 230, 255), Paint.Align.CENTER, sans)
+            label(c, "ALT $altText", w / 2, y - 8.6f * u, 2.9f * u, Color.argb(255, 215, 240, 255), Paint.Align.CENTER, sans)
         }
     }
 
@@ -365,9 +380,18 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         rect2.set(w / 2 - bw / 2 + 2f * u, cy + bh / 2 + 0.8f * u, w / 2 + bw / 2 - 2f * u, cy + bh / 2 + 1.7f * u)
         fill.color = Color.argb(90, 255, 255, 255)
         c.drawRoundRect(rect2, 0.45f * u, 0.45f * u, fill)
-        rect2.right = rect2.left + (rect2.width()) * s.zoneProgress.coerceIn(0f, 1f)
+        val trackLeft = rect2.left
+        val trackW = rect2.width()
+        // the final stretch before the gate is the PERFECT LAUNCH window
+        val zoneLen = Tuning.LEGS[s.legIndex.coerceAtMost(1)].zoneLength
+        val perfectFrac = (Tuning.PERFECT_WINDOW / zoneLen).coerceIn(0.05f, 0.5f)
+        rect.set(trackLeft + trackW * (1f - perfectFrac), rect2.top - 0.25f * u, trackLeft + trackW, rect2.bottom + 0.25f * u)
+        fill.color = Color.argb(235, 255, 214, 74)
+        c.drawRoundRect(rect, 0.5f * u, 0.5f * u, fill)
+        rect2.right = trackLeft + trackW * s.zoneProgress.coerceIn(0f, 1f)
         fill.color = Color.rgb(255, 120, 230)
         c.drawRoundRect(rect2, 0.45f * u, 0.45f * u, fill)
+        label(c, "PERFECT", trackLeft + trackW * (1f - perfectFrac / 2f), rect2.bottom + 3.2f * u, 1.8f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sans)
     }
 
     private fun drawPopups(c: Canvas, s: HudState) {
@@ -508,23 +532,26 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     }
 
     private fun drawVictory(c: Canvas, s: HudState) {
-        dim(c, 110)
-        label(c, "MISSION COMPLETE", w / 2, h * 0.17f, 10.5f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)
-        label(c, s.difficulty.label, w / 2, h * 0.225f, 2.8f * u, Color.argb(220, 200, 215, 255), Paint.Align.CENTER, sans, spacing = 0.2f)
-        // stars
+        // darken only the left part so the victory drive stays visible on the right
+        fill.color = Color.WHITE
+        fill.shader = LinearGradient(0f, 0f, w * 0.62f, 0f, Color.argb(190, 4, 6, 18), Color.argb(0, 4, 6, 18), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w * 0.62f, h, fill)
+        fill.shader = null
+        val cx = w * 0.27f
+        label(c, "MISSION COMPLETE", cx, h * 0.17f, 9.4f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)
+        label(c, s.difficulty.label, cx, h * 0.225f, 2.8f * u, Color.argb(220, 200, 215, 255), Paint.Align.CENTER, sans, spacing = 0.2f)
         for (i in 0 until 3) {
-            val cx = w / 2 + (i - 1) * 11f * u
-            iconStar(c, cx, h * 0.30f, (if (i == 1) 5.6f else 4.6f) * u, i < s.stars)
+            iconStar(c, cx + (i - 1) * 10.5f * u, h * 0.31f, (if (i == 1) 5.4f else 4.4f) * u, i < s.stars)
         }
-        val lineY = h * 0.44f
+        val lineY = h * 0.45f
         val gap = 4.6f * u
-        rows(c, w / 2, lineY, gap, arrayOf("JOURNEY", "HULL BONUS", "TIME BONUS"), intArrayOf(s.breakdownBase, s.breakdownHealth, s.breakdownTime))
+        rows(c, cx, lineY, gap, arrayOf("JOURNEY", "HULL BONUS", "TIME BONUS"), intArrayOf(s.breakdownBase, s.breakdownHealth, s.breakdownTime))
         if (s.score != scoreCache) { scoreCache = s.score; scoreText = String.format(Locale.US, "%,d", s.score) }
-        label(c, "TOTAL  $scoreText", w / 2, lineY + gap * 3 + 4f * u, 6.4f * u, Color.WHITE, Paint.Align.CENTER, sansItalic)
-        if (s.newBest) label(c, "NEW BEST!", w / 2, lineY + gap * 3 + 10.2f * u, 3.6f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)
+        label(c, "TOTAL  $scoreText", cx, lineY + gap * 3 + 4f * u, 6.4f * u, Color.WHITE, Paint.Align.CENTER, sansItalic)
+        if (s.newBest) label(c, "NEW BEST!", cx, lineY + gap * 3 + 10.2f * u, 3.6f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)
         beginButtons()
-        addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", true, h * 0.86f, widthU = 34f, heightU = 8f, xOffsetU = -19f)
-        addButton(BTN_MENU, "MAIN MENU", false, h * 0.86f, widthU = 34f, heightU = 8f, xOffsetU = 19f)
+        addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", true, h * 0.86f, widthU = 31f, heightU = 8f, xOffsetU = -16.5f, centerX = cx)
+        addButton(BTN_MENU, "MAIN MENU", false, h * 0.86f, widthU = 25f, heightU = 8f, xOffsetU = 14.5f, centerX = cx)
         drawButtons(c)
     }
 
@@ -546,12 +573,12 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
 
     private fun beginButtons() { buttonCount = 0 }
 
-    private fun addButton(id: Int, text: String, primary: Boolean, cy: Float, widthU: Float = 46f, heightU: Float = 9f, xOffsetU: Float = 0f) {
+    private fun addButton(id: Int, text: String, primary: Boolean, cy: Float, widthU: Float = 46f, heightU: Float = 9f, xOffsetU: Float = 0f, centerX: Float = w / 2) {
         val b = buttons[buttonCount++]
         b.id = id; b.label = text; b.primary = primary
         val bw = widthU * u
         val bh = heightU * u
-        b.r.set(w / 2 - bw / 2 + xOffsetU * u, cy - bh / 2, w / 2 + bw / 2 + xOffsetU * u, cy + bh / 2)
+        b.r.set(centerX - bw / 2 + xOffsetU * u, cy - bh / 2, centerX + bw / 2 + xOffsetU * u, cy + bh / 2)
     }
 
     private fun drawButtons(c: Canvas) {

@@ -3,6 +3,7 @@ package app.roadtoorbit.trace
 import app.roadtoorbit.game.Bot
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.GameInput
+import app.roadtoorbit.game.HudState
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.gfx.SceneRenderer
 import java.io.File
@@ -14,20 +15,25 @@ class JourneyTraceTest {
 
     @Test
     fun journeyFrames() {
-        val w = 960
-        val h = 540
+        val w = (System.getProperty("traceW") ?: "960").toInt()
+        val h = (System.getProperty("traceH") ?: "540").toInt()
         val gl = RecordingGles(w, h)
         val scene = SceneRenderer(gl)
         scene.resize(w, h)
         val game = Game(7)
+        game.bestScore = 18_420
         val input = GameInput()
         val bot = Bot(game)
+        val hudDir = File(System.getProperty("hudStatesDir") ?: "build/traces/hud").also { it.mkdirs() }
+        val hudState = HudState()
         val dt = 1f / 60f
         val names = ArrayList<String>()
 
         fun snap(name: String) {
             scene.render(game)
             gl.endFrame()
+            game.fillHud(hudState)
+            dumpHud(hudState, File(hudDir, "hud_%04d.properties".format(names.size)))
             names.add(name)
         }
 
@@ -85,5 +91,25 @@ class JourneyTraceTest {
         gl.writeTo(File(dir, "journey.bin"))
         File(dir, "journey.txt").writeText(names.joinToString("\n"))
         println("journey: ${names.size} frames, max draw calls/frame = ${gl.maxDrawCallsPerFrame}, end phase=${game.phase} score=${game.score}")
+    }
+
+    private fun dumpHud(h: HudState, f: File) {
+        val p = java.util.Properties()
+        fun put(k: String, v: Any) { p[k] = v.toString() }
+        put("phase", h.phase.name); put("legIndex", h.legIndex); put("legName", h.legName); put("legSubtitle", h.legSubtitle)
+        put("mode", h.mode.name); put("journey", h.journey); put("legProgress", h.legProgress); put("zoneProgress", h.zoneProgress)
+        put("distanceToGate", h.distanceToGate); put("score", h.score); put("bestScore", h.bestScore); put("coins", h.coins)
+        put("rings", h.rings); put("ringStreak", h.ringStreak); put("health", h.health); put("maxHealth", h.maxHealth)
+        put("difficulty", h.difficulty.name); put("boost", h.boost); put("boosting", h.boosting); put("invulnerable", h.invulnerable)
+        put("speedKmh", h.speedKmh); put("altitudeKm", h.altitudeKm); put("runTime", h.runTime)
+        put("transformReady", h.transformReady); put("transforming", h.transforming); put("countdown", h.countdown)
+        put("flash", h.flash); put("damageFlash", h.damageFlash); put("stars", h.stars); put("newBest", h.newBest)
+        put("breakdownBase", h.breakdownBase); put("breakdownHealth", h.breakdownHealth); put("breakdownTime", h.breakdownTime)
+        put("popupCount", h.popupCount)
+        for (i in 0 until h.popupCount) {
+            put("popup.$i.text", h.popupText[i]); put("popup.$i.color", h.popupColor[i]); put("popup.$i.age", h.popupAge[i])
+            put("popup.$i.ttl", h.popupTtl[i]); put("popup.$i.big", h.popupBig[i])
+        }
+        f.outputStream().use { p.store(it, null) }
     }
 }

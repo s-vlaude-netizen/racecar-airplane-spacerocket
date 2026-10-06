@@ -18,8 +18,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests (game logic, renderer, audio synth)
-        run: ./gradlew :core:test --no-daemon
+      - name: Unit tests (game logic, renderer, audio synth, HUD)
+        run: ./gradlew :core:test :app:testDebugUnitTest --no-daemon
 
       - name: Build the APK
         run: ./gradlew :app:assembleRelease --no-daemon

@@ -112,8 +112,9 @@ class CameraRig {
         val r = 11.5f
         c.ex = sin(ang) * r
         c.ez = cos(ang) * r
-        c.ey = 3.5f + sin(g.menuTime * 0.4f) * 0.4f
-        c.tx = 0f; c.ty = 0.95f; c.tz = 0f
+        c.ey = 3.1f + sin(g.menuTime * 0.4f) * 0.4f
+        // aim low so the vehicle sits in the upper-middle of the frame, clear of the Play button
+        c.tx = 0f; c.ty = 0.1f; c.tz = 0f
         c.fovY = 38f
         roll = 0f
     }
@@ -134,6 +135,12 @@ class CameraRig {
         c.ty = p.y + 0.8f
         c.tz = Mathx.lerp(-8f, 0f, swing)
         c.fovY = Mathx.lerp(66f, 46f, swing)
+        if (g.phase == Phase.VICTORY) {
+            // slide the camera left so the car drives on the right, beside the results panel
+            val d = -4.2f * Mathx.smoother(g.phaseTime / 1.4f)
+            val rx = cos(az); val rz = -sin(az)
+            c.ex += rx * d; c.ez += rz * d; c.tx += rx * d; c.tz += rz * d
+        }
         roll = Mathx.damp(roll, 0f, 3f, 0.016f)
         shake(g.shake, g.clock)
     }
