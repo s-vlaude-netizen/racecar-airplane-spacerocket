@@ -94,8 +94,8 @@ class MainActivity : Activity() {
         if (isGameplay()) bridge.paused = true
         bridge.input.neutral()
         tilt.stop()
+        glView.onPause() // returns once the render thread has stopped, so nothing can restart the sound after this
         renderer.onAppPaused()
-        glView.onPause()
         super.onPause()
     }
 

@@ -16,9 +16,19 @@ import kotlin.math.min
 /**
  * Plays the synthesised sounds through a [SoundPool]. The WAV files are generated once into the
  * app's cache directory (on a background thread) and loaded from there, so the APK ships no audio.
- * Engine hum is a looping stream whose pitch follows the vehicle's speed.
+ * Engine hum is a looping stream whose pitch follows the vehicle's speed; the music loops are scheduled by a
+ * [MusicScheduler] (one worker, each loop synthesised once).
+ *
+ * [update] is called every frame and only ever *states* what should be audible now; anything expensive
+ * happens off the calling thread.
  */
-class AudioEngine(private val context: Context, soundOn: Boolean, musicOn: Boolean = true) {
+class AudioEngine(
+    private val context: Context,
+    soundOn: Boolean,
+    musicOn: Boolean = true,
+    /** Replaceable for tests; by default a [MusicScheduler] that plays through an [AudioTrack]. */
+    music: MusicControl? = null,
+) {
     private val pool: SoundPool = SoundPool.Builder()
         .setMaxStreams(10)
         .setAudioAttributes(
@@ -32,7 +42,7 @@ class AudioEngine(private val context: Context, soundOn: Boolean, musicOn: Boole
     private val sampleIds = IntArray(SoundId.values().size)
     @Volatile private var enabled = soundOn
     @Volatile private var musicEnabled = musicOn
-    private val music = MusicPlayer()
+    private val music: MusicControl = music ?: MusicScheduler(AudioTrackOutput())
 
     private var engineStream = 0
     private var engineSound: SoundId? = null
@@ -71,7 +81,6 @@ class AudioEngine(private val context: Context, soundOn: Boolean, musicOn: Boole
 
     fun setMusicEnabled(on: Boolean) {
         musicEnabled = on
-        if (!on) music.request(null)
     }
 
     fun play(sfx: Sfx) {
@@ -106,10 +115,21 @@ class AudioEngine(private val context: Context, soundOn: Boolean, musicOn: Boole
         if (sample != 0) pool.play(sample, volume, volume, 1, 0, rate)
     }
 
-    /** Called every frame on the GL thread: picks the music track and keeps the engine loop at the right pitch. */
-    fun updateEngine(game: Game) {
-        updateMusic(game)
-        if (!enabled) return
+    /**
+     * Called every frame on the GL thread (also while paused). Idempotent: it re-states which music loop
+     * and engine hum belong to the current moment; nothing here may spawn work or block.
+     */
+    fun update(game: Game, paused: Boolean) {
+        music.request(MusicPolicy.wanted(game.phase, game.legIndex, enabled, musicEnabled))
+        if (paused || !enabled) {
+            silenceEngine()
+            return
+        }
+        stepEngine(game)
+    }
+
+    @Synchronized
+    private fun stepEngine(game: Game) {
         val p = game.player
         val active = when (game.phase) {
             Phase.RUN, Phase.COUNTDOWN, Phase.FINALE -> true
@@ -159,102 +179,69 @@ class AudioEngine(private val context: Context, soundOn: Boolean, musicOn: Boole
         }
     }
 
-    private fun updateMusic(game: Game) {
-        val want: MusicSynth.Track? = if (!enabled || !musicEnabled) null else when (game.phase) {
-            Phase.MENU -> MusicSynth.Track.MENU
-            Phase.COUNTDOWN, Phase.RUN, Phase.CRASHING -> when (game.legIndex) {
-                0 -> MusicSynth.Track.CAR
-                1 -> MusicSynth.Track.PLANE
-                else -> MusicSynth.Track.ROCKET
-            }
-            Phase.FINALE, Phase.VICTORY -> MusicSynth.Track.FINALE
-            Phase.GAME_OVER -> null
-        }
-        music.request(want)
-    }
-
-    /** Silences the engine loop and music (pause, app in background, back to menu). */
+    /** Silences the engine loop only (the music follows [update]). Safe to call every frame. */
+    @Synchronized
     fun silenceEngine() {
         if (engineStream != 0) {
             pool.stop(engineStream)
             engineStream = 0
         }
         engineSound = null
+    }
+
+    /** Silences everything (app in the background, fatal error). */
+    fun silenceAll() {
+        silenceEngine()
         music.request(null)
     }
 
     fun release() {
-        silenceEngine()
+        silenceAll()
         music.release()
         pool.release()
     }
 
     /**
-     * Streams one looping music track at a time through a static [AudioTrack] (gapless looping of
-     * the in-memory PCM). Tracks are synthesised on a worker thread and cached.
+     * Plays one looping music track at a time through a static [AudioTrack] (gapless looping of the
+     * in-memory PCM). Only the [MusicScheduler]'s worker thread calls this.
      */
-    private class MusicPlayer {
-        private val cache = HashMap<MusicSynth.Track, ShortArray>()
-        private val lock = Any()
-        @Volatile private var wanted: MusicSynth.Track? = null
+    private class AudioTrackOutput : MusicScheduler.Output {
         private var track: AudioTrack? = null
-        private var playing: MusicSynth.Track? = null
 
-        fun request(t: MusicSynth.Track?) {
-            if (t == wanted) return
-            wanted = t
-            if (t == null) {
-                synchronized(lock) { stopLocked() }
-                return
+        override fun start(track: MusicSynth.Track, pcm: ShortArray) {
+            stop()
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
+            val format = AudioFormat.Builder()
+                .setSampleRate(SoundSynth.SAMPLE_RATE)
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .build()
+            val at = AudioTrack.Builder()
+                .setAudioAttributes(attrs)
+                .setAudioFormat(format)
+                .setBufferSizeInBytes(pcm.size * 2)
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .build()
+            try {
+                at.write(pcm, 0, pcm.size)
+                at.setLoopPoints(0, pcm.size, -1)
+                at.setVolume(VOLUME)
+                at.play()
+            } catch (t: Throwable) {
+                at.release()
+                throw t
             }
-            Thread({
-                // music is optional: nothing in here may take the game down (an uncaught exception on any
-                // thread kills the whole app on Android)
-                try {
-                    val pcm = synchronized(cache) { cache[t] } ?: MusicSynth.render(t).also { synchronized(cache) { cache[t] = it } }
-                    synchronized(lock) {
-                        if (wanted != t) return@Thread // the game moved on while we were rendering
-                        stopLocked()
-                        val attrs = AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_GAME)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build()
-                        val format = AudioFormat.Builder()
-                            .setSampleRate(SoundSynth.SAMPLE_RATE)
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build()
-                        val at = AudioTrack.Builder()
-                            .setAudioAttributes(attrs)
-                            .setAudioFormat(format)
-                            .setBufferSizeInBytes(pcm.size * 2)
-                            .setTransferMode(AudioTrack.MODE_STATIC)
-                            .build()
-                        at.write(pcm, 0, pcm.size)
-                        at.setLoopPoints(0, pcm.size, -1)
-                        at.setVolume(VOLUME)
-                        at.play()
-                        track = at
-                        playing = t
-                    }
-                } catch (_: Throwable) {
-                    // silence is better than a crash
-                }
-            }, "music").apply { isDaemon = true; start() }
+            this.track = at
         }
 
-        private fun stopLocked() {
-            track?.let {
-                try { it.stop() } catch (_: Throwable) {}
-                it.release()
-            }
+        override fun stop() {
+            val at = track ?: return
             track = null
-            playing = null
-        }
-
-        fun release() {
-            wanted = null
-            synchronized(lock) { stopLocked() }
+            try { at.stop() } catch (_: Throwable) {}
+            at.release()
         }
 
         private companion object {

@@ -86,7 +86,7 @@ class GameRenderer(
             // say what happened on screen (and in Logcat) instead of silently killing the app
             Log.e(TAG, "frame failed", t)
             failed = true
-            audio.silenceEngine()
+            audio.silenceAll()
             bridge.fatalError = describe("Unexpected error", t)
         }
     }
@@ -112,13 +112,12 @@ class GameRenderer(
                 else if (sfx == Sfx.TRANSFORM || sfx == Sfx.TOUCHDOWN) haptic(false)
                 sfx = game.pollSfx()
             }
-            audio.updateEngine(game)
             if (game.phase == Phase.VICTORY || game.phase == Phase.GAME_OVER) {
                 if (game.bestScore > prefs.best(game.difficulty)) prefs.setBest(game.difficulty, game.bestScore)
             }
-        } else {
-            audio.silenceEngine()
         }
+        // states what should be audible right now; idempotent, so calling it every frame (paused or not) is fine
+        audio.update(game, bridge.paused)
         s.render(game)
         bridge.hud.publish(game)
         if (!bridge.ready) bridge.ready = true
@@ -188,7 +187,7 @@ class GameRenderer(
 
     /** Called from the UI thread's onPause so the GL thread stops making noise. */
     fun onAppPaused() {
-        audio.silenceEngine()
+        audio.silenceAll()
     }
 
     fun release() {
