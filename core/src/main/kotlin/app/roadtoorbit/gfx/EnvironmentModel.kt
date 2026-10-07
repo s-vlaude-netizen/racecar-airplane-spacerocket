@@ -2,6 +2,7 @@ package app.roadtoorbit.gfx
 
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.Phase
+import app.roadtoorbit.game.World
 import app.roadtoorbit.math.Mathx
 import kotlin.math.sin
 
@@ -19,19 +20,44 @@ object MoonTerrain {
     const val FULL_RELIEF_AT = 90f
 }
 
+/** The colours of one world at ground level, at the edge of space and in space, plus its light. */
+private class Palette(
+    val dayZenith: FloatArray, val dayHorizon: FloatArray, val dayGround: FloatArray,
+    val highZenith: FloatArray, val highHorizon: FloatArray,
+    val spaceZenith: FloatArray, val spaceHorizon: FloatArray,
+    val sunDay: FloatArray, val sunSpace: FloatArray,
+    val ambSkyDay: FloatArray, val ambSkySpace: FloatArray,
+    val ambGroundDay: FloatArray, val ambGroundSpace: FloatArray,
+    /** Fog density on the ground, at the start of the climb and above the clouds. */
+    val fogGround: Float, val fogClimbStart: Float, val fogClimbEnd: Float,
+)
+
 /**
  * Turns the game state into the look of the world: the sky/fog/light palette slides continuously
  * from a bright day, through a deepening blue stratosphere, into the black of space as the journey's
  * altitude rises. The "curved world" bend winds the road and finally curves the horizon away.
  */
 class EnvironmentModel {
-    private val dayZenith = floatArrayOf(0.20f, 0.46f, 0.92f)
-    private val dayHorizon = floatArrayOf(0.84f, 0.91f, 0.98f)
-    private val dayGround = floatArrayOf(0.60f, 0.68f, 0.74f)
-    private val highZenith = floatArrayOf(0.03f, 0.07f, 0.30f)
-    private val highHorizon = floatArrayOf(0.42f, 0.60f, 0.88f)
-    private val spaceZenith = floatArrayOf(0.0f, 0.0f, 0.012f)
-    private val spaceHorizon = floatArrayOf(0.012f, 0.016f, 0.045f)
+    private val earth = Palette(
+        dayZenith = floatArrayOf(0.20f, 0.46f, 0.92f), dayHorizon = floatArrayOf(0.84f, 0.91f, 0.98f), dayGround = floatArrayOf(0.60f, 0.68f, 0.74f),
+        highZenith = floatArrayOf(0.03f, 0.07f, 0.30f), highHorizon = floatArrayOf(0.42f, 0.60f, 0.88f),
+        spaceZenith = floatArrayOf(0.0f, 0.0f, 0.012f), spaceHorizon = floatArrayOf(0.012f, 0.016f, 0.045f),
+        sunDay = floatArrayOf(1.0f, 0.95f, 0.86f), sunSpace = floatArrayOf(1.0f, 0.97f, 0.92f),
+        ambSkyDay = floatArrayOf(0.50f, 0.58f, 0.70f), ambSkySpace = floatArrayOf(0.16f, 0.19f, 0.30f),
+        ambGroundDay = floatArrayOf(0.34f, 0.32f, 0.28f), ambGroundSpace = floatArrayOf(0.09f, 0.09f, 0.15f),
+        fogGround = 0.0040f, fogClimbStart = 0.0036f, fogClimbEnd = 0.0016f,
+    )
+
+    /** Butterscotch sky and rust-coloured dust: a thin, dusty atmosphere that is gone a few kilometres up. */
+    private val mars = Palette(
+        dayZenith = floatArrayOf(0.50f, 0.36f, 0.36f), dayHorizon = floatArrayOf(0.90f, 0.66f, 0.46f), dayGround = floatArrayOf(0.62f, 0.38f, 0.26f),
+        highZenith = floatArrayOf(0.07f, 0.04f, 0.14f), highHorizon = floatArrayOf(0.62f, 0.36f, 0.36f),
+        spaceZenith = floatArrayOf(0.0f, 0.0f, 0.012f), spaceHorizon = floatArrayOf(0.022f, 0.012f, 0.035f),
+        sunDay = floatArrayOf(1.0f, 0.90f, 0.78f), sunSpace = floatArrayOf(1.0f, 0.96f, 0.90f),
+        ambSkyDay = floatArrayOf(0.60f, 0.46f, 0.42f), ambSkySpace = floatArrayOf(0.17f, 0.17f, 0.28f),
+        ambGroundDay = floatArrayOf(0.38f, 0.24f, 0.18f), ambGroundSpace = floatArrayOf(0.10f, 0.08f, 0.13f),
+        fogGround = 0.0046f, fogClimbStart = 0.0040f, fogClimbEnd = 0.0016f,
+    )
 
     private val menuZenith = floatArrayOf(0.04f, 0.06f, 0.20f)
     private val menuHorizon = floatArrayOf(0.52f, 0.30f, 0.46f)
@@ -48,9 +74,13 @@ class EnvironmentModel {
             return
         }
 
-        mix3(dayZenith, highZenith, k1, e.zenith); mix3(e.zenith, spaceZenith, k2, e.zenith)
-        mix3(dayHorizon, highHorizon, k1, e.horizon); mix3(e.horizon, spaceHorizon, k2, e.horizon)
-        mix3(dayGround, highHorizon, k1, e.groundCol); mix3(e.groundCol, spaceHorizon, k2, e.groundCol)
+        val isMars = g.level.world == World.MARS
+        val pal = if (isMars) mars else earth
+        e.world = if (isMars) 1f else 0f
+
+        mix3(pal.dayZenith, pal.highZenith, k1, e.zenith); mix3(e.zenith, pal.spaceZenith, k2, e.zenith)
+        mix3(pal.dayHorizon, pal.highHorizon, k1, e.horizon); mix3(e.horizon, pal.spaceHorizon, k2, e.horizon)
+        mix3(pal.dayGround, pal.highHorizon, k1, e.groundCol); mix3(e.groundCol, pal.spaceHorizon, k2, e.groundCol)
         e.fogColor[0] = e.horizon[0]; e.fogColor[1] = e.horizon[1]; e.fogColor[2] = e.horizon[2]
 
         // light comes from behind and above so the vehicle and obstacles are always well lit
@@ -58,9 +88,9 @@ class EnvironmentModel {
         val sy = Mathx.lerp(0.62f, 0.42f, k2)
         val sz = 0.62f
         e.setSun(sx, sy, sz)
-        mix3(floatArrayOf(1.0f, 0.95f, 0.86f), floatArrayOf(1.0f, 0.97f, 0.92f), k2, e.sunColor)
-        mix3(floatArrayOf(0.50f, 0.58f, 0.70f), floatArrayOf(0.16f, 0.19f, 0.30f), k2, e.ambSky)
-        mix3(floatArrayOf(0.34f, 0.32f, 0.28f), floatArrayOf(0.09f, 0.09f, 0.15f), k2, e.ambGround)
+        mix3(pal.sunDay, pal.sunSpace, k2, e.sunColor)
+        mix3(pal.ambSkyDay, pal.ambSkySpace, k2, e.ambSky)
+        mix3(pal.ambGroundDay, pal.ambGroundSpace, k2, e.ambGround)
 
         e.starAmount = Mathx.smoothstep(0.55f, 1.05f, a)
         e.nebula = Mathx.smoothstep(1.1f, 2.0f, a) * 0.8f
@@ -74,13 +104,13 @@ class EnvironmentModel {
             0 -> {
                 e.bendX = 0.00032f * curve
                 e.bendY = 0.00014f * hills - 0.00004f
-                e.fogDensity = 0.0040f
+                e.fogDensity = pal.fogGround
             }
             1 -> {
                 val mild = Mathx.lerp(0.55f, 0.25f, k1)
                 e.bendX = 0.00032f * curve * mild * calm
                 e.bendY = (0.00014f * hills * mild - 0.00004f - 0.00006f * (0.3f + 0.7f * k1)) * calm
-                e.fogDensity = Mathx.lerp(0.0036f, 0.0016f, k1)
+                e.fogDensity = Mathx.lerp(pal.fogClimbStart, pal.fogClimbEnd, k1)
             }
             else -> {
                 e.bendX = 0f; e.bendY = 0f

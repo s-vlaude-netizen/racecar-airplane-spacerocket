@@ -4,7 +4,6 @@ import app.roadtoorbit.game.Entity
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.Kind
 import app.roadtoorbit.game.Phase
-import app.roadtoorbit.game.Tuning
 import app.roadtoorbit.gl.Gles
 import app.roadtoorbit.math.Mat4
 import app.roadtoorbit.math.Mathx
@@ -71,9 +70,9 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
 
     private fun celestials(g: Game) {
         val look = g.look
-        val inSpace = g.legIndex == 2 || g.phase == Phase.FINALE || g.phase == Phase.VICTORY
+        val inSpace = g.legIndex == g.level.lastLeg || g.phase == Phase.FINALE || g.phase == Phase.VICTORY
         if (!inSpace || g.phase == Phase.MENU) return
-        val p = Mathx.clamp01(g.legDist / Tuning.LEGS[2].length)
+        val p = Mathx.clamp01(g.legDist / g.level.legs[2].length)
 
         // Earth: sits just beneath the sinking cloud deck, then dominates the view below
         val earthR = 4300f
@@ -92,7 +91,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         }
 
         // The Moon grows ahead and slips beneath us during the final approach
-        if (g.legIndex == 2 && g.phase != Phase.CRASHING || g.phase == Phase.FINALE) {
+        if (g.legIndex == g.level.lastLeg && g.phase != Phase.CRASHING || g.phase == Phase.FINALE) {
             val mApp = if (g.phase == Phase.FINALE || g.phase == Phase.VICTORY) 1f else look.moonApproach
             if (mApp > 0f || g.phase == Phase.FINALE) {
                 val r = 2400f
@@ -123,7 +122,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
 
     private fun road(g: Game) {
         if (g.phase == Phase.MENU || g.legIndex > 1 || !g.look.roadVisible) return
-        val leg0 = Tuning.LEGS[0]
+        val leg0 = g.level.legs[0]
         val routeS = if (g.legIndex == 0) g.legDist else leg0.length + g.legDist
         val endRoute = leg0.length + 6f + 62f
         val seg = renderer.meshes[MeshId.ROAD_SEGMENT]

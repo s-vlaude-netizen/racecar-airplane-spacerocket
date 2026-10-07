@@ -176,7 +176,8 @@ uniform mat4 uProj;
 $BEND
 uniform vec4 uGrid;   // x: cell size, y: columns, z: rows behind the camera, w: world row index of local row 0
 uniform float uSlide; // shift along +z (0..cell) keeping vertices anchored to the world
-uniform vec4 uTer;    // x: ground y, y: amplitude, z: flat corridor half width, w: style (0 grass, 1 cloud, 2 moon)
+uniform vec4 uTer;    // x: ground y, y: amplitude, z: flat corridor half width, w: style (0 land, 1 cloud/dust deck, 2 moon)
+uniform float uWorld; // 0 Earth, 1 Mars: the land is rolling green hills or terraced red mesas; the moon is the Moon or Phobos
 out vec3 vWorld;
 out float vDist;
 
@@ -231,6 +232,17 @@ float grassHeight(vec2 xs) {
     h += (fbm(xs * 0.09) - 0.5) * 1.4 * smoothstep(uTer.z - 2.0, uTer.z + 6.0, ax);
     return h;
 }
+// Mars: broad terraced mesas (flat tops, steep walls), gravel ripples near the road and a few wide impact basins.
+float marsHeight(vec2 xs) {
+    float ax = abs(xs.x);
+    float valley = smoothstep(uTer.z, uTer.z + 130.0, ax);
+    float field = fbm(xs * 0.0065 + 40.0);
+    float terraces = smoothstep(0.44, 0.49, field) * 0.40 + smoothstep(0.54, 0.59, field) * 0.35 + smoothstep(0.64, 0.69, field) * 0.25;
+    float h = (fbm(xs * 0.011) * 0.22 + terraces) * uTer.y * valley;
+    h += (fbm(xs * 0.09) - 0.5) * 1.4 * smoothstep(uTer.z - 2.0, uTer.z + 6.0, ax);
+    h += craters(xs + 77.0, 260.0) * 4.0 * valley;
+    return h;
+}
 float cloudHeight(vec2 xs) {
     float b = fbm(xs * 0.02 + 5.0);
     return b * b * 30.0 + fbm(xs * 0.08) * 3.0;
@@ -241,10 +253,14 @@ float moonHeight(vec2 xs) {
     float relief = smoothstep(${MoonTerrain.FLAT_HALF_WIDTH}, ${MoonTerrain.FULL_RELIEF_AT}, abs(xs.x));
     return (craters(xs, 22.0) * 1.6 + craters(xs + 130.0, 60.0) * 2.2 + (fbm(xs * 0.05) - 0.5) * 3.0) * relief;
 }
+float landHeight(vec2 xs) {
+    if (uWorld > 0.5) return marsHeight(xs);
+    return grassHeight(xs);
+}
 float terrainHeight(vec2 xs) {
     float st = uTer.w;
-    if (st <= 0.0) return grassHeight(xs);
-    if (st < 1.0) return mix(grassHeight(xs), cloudHeight(xs), st);
+    if (st <= 0.0) return landHeight(xs);
+    if (st < 1.0) return mix(landHeight(xs), cloudHeight(xs), st);
     if (st < 2.0) return mix(cloudHeight(xs), moonHeight(xs), st - 1.0);
     return moonHeight(xs);
 }
@@ -279,6 +295,7 @@ uniform vec3 uFogColor;
 uniform float uFogDensity;
 uniform vec4 uTer;    // x: ground y, y: amplitude, z: corridor half width, w: style
 uniform vec4 uTerCol; // rgb: tint multiplier, a: unused
+uniform float uWorld; // 0 Earth, 1 Mars
 out vec4 outColor;
 
 float hash12(vec2 p) {
@@ -304,23 +321,27 @@ void main() {
     float speck = 0.5;
     if (vDist < 170.0) speck = vnoise(vWorld.xz * 0.35); // fine detail only where it can be seen
 
-    vec3 grassA = vec3(0.27, 0.52, 0.20);
-    vec3 grassB = vec3(0.40, 0.60, 0.22);
-    vec3 forest = vec3(0.15, 0.36, 0.17);
-    vec3 rock = vec3(0.47, 0.43, 0.40);
-    vec3 snow = vec3(0.93, 0.95, 0.98);
+    // the land: grass, forest, rock and snow on Earth; rust sand, dark basalt, banded rock and pale dust on Mars
+    vec3 grassA = mix(vec3(0.27, 0.52, 0.20), vec3(0.66, 0.32, 0.17), uWorld);
+    vec3 grassB = mix(vec3(0.40, 0.60, 0.22), vec3(0.80, 0.46, 0.25), uWorld);
+    vec3 forest = mix(vec3(0.15, 0.36, 0.17), vec3(0.36, 0.19, 0.15), uWorld);
+    vec3 rock = mix(vec3(0.47, 0.43, 0.40), vec3(0.55, 0.31, 0.22), uWorld);
+    vec3 snow = mix(vec3(0.93, 0.95, 0.98), vec3(0.92, 0.78, 0.64), uWorld);
     vec3 grass = mix(grassA, grassB, blotch);
     float woods = smoothstep(0.3, 0.7, blotch * 0.55 + 0.45 * (0.5 + 0.5 * sin(vWorld.x * 0.013 + vWorld.z * 0.0071)));
     grass = mix(grass, forest, woods * (1.0 - smoothstep(0.2, 0.5, hn)));
+    rock *= 1.0 + uWorld * 0.12 * sin(vWorld.y * 1.1 + blotch * 3.0); // strata on the walls of the mesas
     grass = mix(grass, rock, smoothstep(0.28, 0.5, hn + (blotch - 0.5) * 0.2));
     grass = mix(grass, snow, smoothstep(0.62, 0.78, hn + (speck - 0.5) * 0.08));
     float verge = 1.0 - smoothstep(7.0, 12.0, abs(vWorld.x));
-    grass = mix(grass, vec3(0.36, 0.42, 0.22), verge * 0.55);
+    grass = mix(grass, mix(vec3(0.36, 0.42, 0.22), vec3(0.50, 0.29, 0.18), uWorld), verge * 0.55);
     grass *= 0.93 + 0.14 * speck;
 
-    vec3 cloudCol = mix(vec3(0.66, 0.74, 0.90), vec3(1.0, 1.0, 1.0), smoothstep(0.0, 0.7, hn + (blotch - 0.5) * 0.4));
+    vec3 cloudLo = mix(vec3(0.66, 0.74, 0.90), vec3(0.76, 0.47, 0.30), uWorld);
+    vec3 cloudHi = mix(vec3(1.0, 1.0, 1.0), vec3(0.98, 0.82, 0.64), uWorld);
+    vec3 cloudCol = mix(cloudLo, cloudHi, smoothstep(0.0, 0.7, hn + (blotch - 0.5) * 0.4));
 
-    vec3 dust = vec3(0.60, 0.59, 0.58) * (0.82 + 0.3 * blotch) * (0.9 + 0.2 * speck);
+    vec3 dust = mix(vec3(0.60, 0.59, 0.58), vec3(0.38, 0.33, 0.30), uWorld) * (0.82 + 0.3 * blotch) * (0.9 + 0.2 * speck);
     vec3 col = mix(grass, cloudCol, clamp(st, 0.0, 1.0));
     col = mix(col, dust, clamp(st - 1.0, 0.0, 1.0));
     col *= uTerCol.rgb;

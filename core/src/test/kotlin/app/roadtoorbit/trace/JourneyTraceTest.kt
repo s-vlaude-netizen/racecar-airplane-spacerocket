@@ -4,6 +4,7 @@ import app.roadtoorbit.game.Bot
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.GameInput
 import app.roadtoorbit.game.HudState
+import app.roadtoorbit.game.Levels
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.gfx.SceneRenderer
 import java.io.File
@@ -21,6 +22,7 @@ class JourneyTraceTest {
         val scene = SceneRenderer(gl)
         scene.resize(w, h)
         val game = Game(7)
+        game.level = Levels[(System.getProperty("traceLevel") ?: "0").toInt()]
         game.bestScore = 18_420
         val input = GameInput()
         val bot = Bot(game)
@@ -97,6 +99,8 @@ class JourneyTraceTest {
         val p = java.util.Properties()
         fun put(k: String, v: Any) { p[k] = v.toString() }
         put("phase", h.phase.name); put("legIndex", h.legIndex); put("legName", h.legName); put("legSubtitle", h.legSubtitle)
+        put("levelIndex", h.levelIndex); put("levelName", h.levelName); put("nextLevelName", h.nextLevelName)
+        put("legLength", h.legLength); put("legZoneLength", h.legZoneLength)
         put("mode", h.mode.name); put("journey", h.journey); put("legProgress", h.legProgress); put("zoneProgress", h.zoneProgress)
         put("distanceToGate", h.distanceToGate); put("score", h.score); put("bestScore", h.bestScore); put("coins", h.coins)
         put("rings", h.rings); put("ringStreak", h.ringStreak); put("health", h.health); put("maxHealth", h.maxHealth)

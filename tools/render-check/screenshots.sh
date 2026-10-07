@@ -5,14 +5,15 @@
 #   3. the real HUD (the Canvas code of the app) is drawn on transparent bitmaps by Robolectric -> overlays
 #   4. compose.py lays each overlay over its 3D frame                          -> <out>/shots/<name>.png
 #
-# usage: tools/render-check/screenshots.sh [outDir]      (default: tools/render-check/out)
+# usage: tools/render-check/screenshots.sh [outDir] [level]   (default: tools/render-check/out, level 0 = the Moon; 1 = Mars)
 # needs: JDK 17 + Android SDK (see README), Node with Playwright + Chromium, python3 with Pillow
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 out="${1:-$root/tools/render-check/out}"
+level="${2:-0}"
 cd "$root"
 
-./gradlew :core:journeyTrace -q
+./gradlew :core:journeyTrace -q -DtraceLevel="$level"
 node tools/render-check/render.mjs core/build/traces/journey.bin "$out/journey" all
 ./gradlew :app:testDebugUnitTest --tests '*HudOverlayTest' --rerun -q
 python3 tools/render-check/compose.py "$out/journey" app/build/hud core/build/traces/journey.txt "$out/shots"

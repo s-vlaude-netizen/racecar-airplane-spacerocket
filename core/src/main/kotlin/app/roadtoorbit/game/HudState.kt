@@ -11,9 +11,15 @@ import kotlin.math.pow
  */
 class HudState {
     var phase = Phase.MENU
+    var levelIndex = 0
+    var levelName = ""
+    /** The level after this one, or "" when this is the last. */
+    var nextLevelName = ""
     var legIndex = 0
     var legName = ""
     var legSubtitle = ""
+    var legLength = 2800f
+    var legZoneLength = 320f
     var mode = VehicleMode.CAR
     var journey = 0f
     var legProgress = 0f
@@ -85,9 +91,14 @@ class HudBuffer {
 internal fun Game.fillHudInternal(h: HudState) {
     val l = leg
     h.phase = phase
+    h.levelIndex = level.index
+    h.levelName = level.name
+    h.nextLevelName = if (level.index + 1 < Levels.count) Levels[level.index + 1].name else ""
     h.legIndex = legIndex
     h.legName = l.name
     h.legSubtitle = l.subtitle
+    h.legLength = l.length
+    h.legZoneLength = l.zoneLength
     h.mode = player.visual.dominant
     h.journey = journeyProgress
     h.legProgress = Mathx.clamp01(legDist / l.length)
@@ -132,10 +143,10 @@ internal fun Game.fillHudInternal(h: HudState) {
     }
 }
 
-/** Fictional altitude: sea level → 100 km (edge of space) in the sky leg, then on toward the Moon. */
+/** Fictional altitude: sea level → 100 km (edge of space) in the sky leg, then on toward the level's destination. */
 internal fun Game.altitudeKm(): Float = when {
-    phase == Phase.FINALE || phase == Phase.VICTORY -> 384_400f
+    phase == Phase.FINALE || phase == Phase.VICTORY -> level.destinationKm
     legIndex == 0 -> 0f
     legIndex == 1 -> 100f * Mathx.smoothstep(0f, 1f, Mathx.clamp01(legDist / leg.length))
-    else -> 100f + 384_300f * Mathx.clamp01(legDist / leg.length).pow(2.2f)
+    else -> 100f + (level.destinationKm - 100f) * Mathx.clamp01(legDist / leg.length).pow(2.2f)
 }

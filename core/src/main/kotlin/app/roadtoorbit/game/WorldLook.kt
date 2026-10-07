@@ -21,8 +21,7 @@ class WorldLook {
     var moonApproach = 0f
 
     fun update(g: Game) {
-        val leg = Tuning.LEGS[g.legIndex]
-        val p = Mathx.clamp01(g.legDist / leg.length)
+        val p = Mathx.clamp01(g.legDist / g.leg.length)
         when (g.phase) {
             Phase.FINALE, Phase.VICTORY -> {
                 terrainOn = true
@@ -35,7 +34,7 @@ class WorldLook {
             }
             else -> Unit
         }
-        moonApproach = if (g.legIndex == 2) Mathx.smoothstep(0.55f, 1f, p) else 0f
+        moonApproach = if (g.legIndex == g.level.lastLeg) Mathx.smoothstep(0.55f, 1f, p) else 0f
         when (g.legIndex) {
             0 -> {
                 groundY = 0f

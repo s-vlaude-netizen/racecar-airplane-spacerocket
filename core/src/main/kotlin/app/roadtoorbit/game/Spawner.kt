@@ -70,7 +70,7 @@ internal class Spawner(private val g: Game) {
 
     private fun diff(leg: Int, s: Float, hazardEnd: Float): Float {
         val prog = Mathx.clamp01(s / hazardEnd)
-        val base = when (leg) { 0 -> 0f; 1 -> 0.15f; else -> 0.25f }
+        val base = g.level.startDifficulty[leg]
         return base + (1f - base) * prog
     }
 
@@ -281,7 +281,7 @@ internal class Spawner(private val g: Game) {
 
     private fun planePattern(s: Float, d: Float, hazards: Boolean): Float {
         if (!hazards) return if (rng.chance(0.6f)) ringChain(s, 4, 0.6f) else coinArc(s)
-        val early = g.legDist < Tuning.LEGS[1].length * 0.26f
+        val early = g.legDist < g.level.legs[1].length * 0.26f
         val w = floatArrayOf(
             3.2f, // ring chain
             1.6f, // coin arc
@@ -375,7 +375,8 @@ internal class Spawner(private val g: Game) {
             val e = place(Kind.JET, s, k * rng.range(20f, 34f), side * rng.range(20f, 26f), rng.range(8f, 26f), variant = rng.int(3))
             val tx = rng.range(-8f, 8f)
             val zDist = abs(e.z)
-            val est = Mathx.lerp(Tuning.LEGS[1].speedStart, Tuning.LEGS[1].speedEnd, Mathx.clamp01(g.legDist / Tuning.LEGS[1].length))
+            val plane = g.level.legs[1]
+            val est = Mathx.lerp(plane.speedStart, plane.speedEnd, Mathx.clamp01(g.legDist / plane.length))
             val time = zDist / max(10f, est - e.speed)
             e.vx = (tx - e.x) / time
             e.ry = if (e.vx > 0f) -90f else 90f
@@ -482,7 +483,8 @@ internal class Spawner(private val g: Game) {
             val side = rng.sign()
             val e = place(Kind.SATELLITE, s, k * rng.range(26f, 40f), side * rng.range(22f, 28f), rng.range(7f, 25f))
             val tx = rng.range(-9f, 9f)
-            val est = Mathx.lerp(Tuning.LEGS[2].speedStart, Tuning.LEGS[2].speedEnd, Mathx.clamp01(g.legDist / Tuning.LEGS[2].length))
+            val rocket = g.level.legs[2]
+            val est = Mathx.lerp(rocket.speedStart, rocket.speedEnd, Mathx.clamp01(g.legDist / rocket.length))
             val time = abs(e.z) / max(20f, est)
             e.vx = (tx - e.x) / time
         }

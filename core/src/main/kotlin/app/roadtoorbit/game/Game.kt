@@ -106,6 +106,13 @@ class Game(seed: Long = 1L) {
 
     val maxHealth: Int get() = difficulty.maxHealth
 
+    /** Chosen on the menu; applies from the next [startRun]. Like [difficulty], changes outside the menu are ignored. */
+    var level: LevelSpec = Levels[0]
+        set(value) {
+            if (phase != Phase.MENU) return
+            field = value
+        }
+
     var newBest = false
         private set
     var stars = 0
@@ -136,11 +143,11 @@ class Game(seed: Long = 1L) {
     private val sfxQueue = ArrayDeque<Sfx>()
     private var perfectLaunch = false
 
-    val leg: LegSpec get() = Tuning.LEGS[legIndex]
+    val leg: LegSpec get() = level.legs[legIndex]
     val journeyProgress: Float
         get() = when (phase) {
             Phase.FINALE, Phase.VICTORY -> 1f
-            else -> ((legIndex + Mathx.clamp01(legDist / leg.length)) / Tuning.LEGS.size)
+            else -> ((legIndex + Mathx.clamp01(legDist / leg.length)) / level.legs.size)
         }
 
     /** Metres of road/flight left before the leg's gate. */
@@ -204,7 +211,7 @@ class Game(seed: Long = 1L) {
     private fun beginLeg(index: Int, countdownSeconds: Float) {
         legIndex = index
         legDist = 0f
-        val l = Tuning.LEGS[index]
+        val l = level.legs[index]
         clearWorld()
         val startY = when (l.mode) {
             VehicleMode.CAR -> 0f
@@ -356,7 +363,7 @@ class Game(seed: Long = 1L) {
         updateZone(pressed)
         if (xf.active && xf.t >= 1f) finishTransform()
         updateFx(dt)
-        if (phase == Phase.RUN && legIndex == 2 && legDist >= leg.length && !xf.active) beginFinale()
+        if (phase == Phase.RUN && legIndex == level.lastLeg && legDist >= leg.length && !xf.active) beginFinale()
     }
 
     private fun stepPlayer(dt: Float, input: GameInput) {
@@ -712,7 +719,7 @@ class Game(seed: Long = 1L) {
 
     private fun beginTransform(manual: Boolean) {
         val from = leg
-        val next = Tuning.LEGS[legIndex + 1]
+        val next = level.legs[legIndex + 1]
         val remaining = from.length - legDist
         perfectLaunch = manual && remaining <= Tuning.PERFECT_WINDOW
         val bonus = scaled(if (perfectLaunch) Tuning.PERFECT_TRANSFORM_SCORE else Tuning.TRANSFORM_SCORE)
@@ -786,7 +793,7 @@ class Game(seed: Long = 1L) {
         removeWhere { it.kind.category == Category.HAZARD || it.kind.category == Category.PICKUP || it.kind == Kind.PLANET }
         finaleGroundY = -330f
         flash = 0.6f
-        popup("APPROACHING THE MOON", COLOR_WHITE, 2.6f, true)
+        popup("APPROACHING ${level.destination}", COLOR_WHITE, 2.6f, true)
     }
 
     private var finaleStartY = 14f
@@ -863,11 +870,11 @@ class Game(seed: Long = 1L) {
         phase = Phase.VICTORY
         phaseTime = 0f
         val healthBonus = scaled(player.health * Tuning.HEALTH_BONUS * 3 / maxHealth)
-        val timeBonus = scaled(max(0, ((330f - runTime) * 12f).toInt()))
+        val timeBonus = scaled(max(0, ((level.parSeconds - runTime) * 12f).toInt()))
         val base = score
         score += healthBonus + timeBonus
         lastScoreBreakdown = intArrayOf(base, healthBonus, timeBonus)
-        stars = Tuning.STAR_THRESHOLDS.count { score >= scaled(it) }
+        stars = level.starScores.count { score >= scaled(it) }
         newBest = score > bestScore
         if (newBest) bestScore = score
         sfx(Sfx.VICTORY)

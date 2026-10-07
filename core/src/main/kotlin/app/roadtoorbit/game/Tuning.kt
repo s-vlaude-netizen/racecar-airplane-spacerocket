@@ -2,7 +2,7 @@ package app.roadtoorbit.game
 
 import app.roadtoorbit.gfx.VehicleMode
 
-/** One of the three stages of the journey. Distances are metres, speeds metres per second. */
+/** One of the three stages of a level's journey. Distances are metres, speeds metres per second. */
 class LegSpec(
     val index: Int,
     val mode: VehicleMode,
@@ -22,12 +22,6 @@ class LegSpec(
 )
 
 object Tuning {
-    val LEGS: Array<LegSpec> = arrayOf(
-        LegSpec(0, VehicleMode.CAR, "GRAND PRIX", "Race to the launch gate", 2800f, 320f, 40f, 56f, 0.45f, 400f, 150f, 3.6f),
-        LegSpec(1, VehicleMode.PLANE, "SKY RALLY", "Climb to the edge of space", 4300f, 400f, 72f, 96f, 0.40f, 560f, 120f, 3.6f * 2.6f),
-        LegSpec(2, VehicleMode.ROCKET, "ORBIT RUN", "Reach the Moon", 6300f, 0f, 112f, 150f, 0.50f, 680f, 120f, 3.6f * 38f),
-    )
-
     // ---- player / health
     const val MAX_HEALTH = 3
     const val INVULN_AFTER_HIT = 1.7f
@@ -80,5 +74,4 @@ object Tuning {
     const val TRANSFORM_SCORE = 300
     const val PERFECT_TRANSFORM_SCORE = 1000
     const val HEALTH_BONUS = 600
-    val STAR_THRESHOLDS = intArrayOf(9000, 15000, 21000)
 }

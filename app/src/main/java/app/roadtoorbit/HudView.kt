@@ -395,8 +395,8 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         label(c, "TRANSFORM", xform[0], xform[1] + 6.2f * u, 2.5f * u, if (ready) Color.WHITE else Color.argb(150, 255, 255, 255), Paint.Align.CENTER, sansItalic)
         if (!ready) {
             // distance until the zone opens
-            val zoneStart = Tuning.LEGS[s.legIndex].length - Tuning.LEGS[s.legIndex].zoneLength
-            val toZone = (zoneStart - s.legProgress * Tuning.LEGS[s.legIndex].length).coerceAtLeast(0f)
+            val zoneStart = s.legLength - s.legZoneLength
+            val toZone = (zoneStart - s.legProgress * s.legLength).coerceAtLeast(0f)
             if (toZone < 900f) label(c, "ZONE IN ${(toZone / 10f).toInt() * 10} m", xform[0], xform[1] + 9.4f * u, 1.9f * u, Color.argb(190, 200, 215, 255), Paint.Align.CENTER, light)
         } else {
             line.strokeWidth = 1.0f * u
@@ -428,8 +428,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         val trackLeft = rect2.left
         val trackW = rect2.width()
         // the final stretch before the gate is the PERFECT LAUNCH window
-        val zoneLen = Tuning.LEGS[s.legIndex.coerceAtMost(1)].zoneLength
-        val perfectFrac = (Tuning.PERFECT_WINDOW / zoneLen).coerceIn(0.05f, 0.5f)
+        val perfectFrac = (Tuning.PERFECT_WINDOW / s.legZoneLength.coerceAtLeast(1f)).coerceIn(0.05f, 0.5f)
         rect.set(trackLeft + trackW * (1f - perfectFrac), rect2.top - 0.25f * u, trackLeft + trackW, rect2.bottom + 0.25f * u)
         fill.color = Color.argb(235, 255, 214, 74)
         c.drawRoundRect(rect, 0.5f * u, 0.5f * u, fill)

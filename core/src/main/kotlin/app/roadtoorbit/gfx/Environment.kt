@@ -31,6 +31,8 @@ class Environment {
     var terrainAmp = 90f
     var corridor = 9f
     var terrainStyle = 0f // 0 grass, 1 cloud deck, 2 moon
+    /** 0 = Earth, 1 = Mars: picks the terrain's shapes and colours. */
+    var world = 0f
     val terrainTint = floatArrayOf(1f, 1f, 1f)
 
     fun setSun(x: Float, y: Float, z: Float) {
