@@ -571,7 +571,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     private fun drawGameOver(c: Canvas, s: HudState) {
         dim(c, 120)
         label(c, "CRASHED!", w / 2, h * 0.24f, 12f * u, Color.rgb(255, 110, 100), Paint.Align.CENTER, sansItalic)
-        label(c, s.legName + "  ·  " + s.difficulty.label, w / 2, h * 0.32f, 3.4f * u, Color.argb(220, 200, 215, 255), Paint.Align.CENTER, sans, spacing = 0.15f)
+        label(c, s.levelName + "  ·  " + s.legName + "  ·  " + s.difficulty.label, w / 2, h * 0.32f, 3.4f * u, Color.argb(220, 200, 215, 255), Paint.Align.CENTER, sans, spacing = 0.15f)
         if (s.score != scoreCache) { scoreCache = s.score; scoreText = String.format(Locale.US, "%,d", s.score) }
         label(c, "SCORE  $scoreText", w / 2, h * 0.43f, 6f * u, Color.WHITE, Paint.Align.CENTER, sansItalic)
         if (s.newBest) label(c, "NEW BEST!", w / 2, h * 0.50f, 4f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)

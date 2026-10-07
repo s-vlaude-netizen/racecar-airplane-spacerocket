@@ -832,7 +832,11 @@ class Game(seed: Long = 1L) {
             touchedDown = true
             sfx(Sfx.TOUCHDOWN)
             shake = 0.7f
-            particles.burst(0f, 0.3f, -1f, 60, 14f, 1.6f, 1.6f, Col.rgba(0xB8B4AE, 0.85f), Col.rgba(0x777470, 0f), false, 1.5f, 1.2f)
+            if (level.world == World.MARS) {
+                particles.burst(0f, 0.3f, -1f, 60, 14f, 1.6f, 1.6f, Col.rgba(0x9A8A7C, 0.85f), Col.rgba(0x5E5249, 0f), false, 1.5f, 1.2f)
+            } else {
+                particles.burst(0f, 0.3f, -1f, 60, 14f, 1.6f, 1.6f, Col.rgba(0xB8B4AE, 0.85f), Col.rgba(0x777470, 0f), false, 1.5f, 1.2f)
+            }
         }
         v.flame = if (t < 3.6f) 0.9f * (1f - Mathx.smoothstep(2.4f, 3.6f, t)) + 0.2f else 0f
         if (t >= 5.0f && !finaleMorphed) {
@@ -863,7 +867,9 @@ class Game(seed: Long = 1L) {
                 dustAcc -= 1f
                 particles.emit(
                     p.x + rng.range(-1.2f, 1.2f), 0.2f, 1.5f, rng.range(-1f, 1f), rng.range(0.5f, 2f), 3f + p.speed * 0.2f,
-                    rng.range(0.6f, 1.2f), 0.5f, 1.4f, Col.rgba(0xB8B4AE, 0.5f), Col.rgba(0x888480, 0f), false, 0f, 1f, true,
+                    rng.range(0.6f, 1.2f), 0.5f, 1.4f,
+                    if (level.world == World.MARS) Col.rgba(0x9A8A7C, 0.5f) else Col.rgba(0xB8B4AE, 0.5f),
+                    if (level.world == World.MARS) Col.rgba(0x6E6258, 0f) else Col.rgba(0x888480, 0f), false, 0f, 1f, true,
                 )
             }
         }
@@ -975,7 +981,10 @@ class Game(seed: Long = 1L) {
                 VehicleMode.CAR -> rng.range(0.3f, 5f)
                 else -> p.y + rng.range(-14f, 14f)
             }
-            val c = if (leg.mode == VehicleMode.CAR) Col.rgba(0xFFFFFF, 0.35f) else Col.rgba(0xCFE8FF, 0.7f)
+            val c = if (level.world == World.MARS) {
+                // the thin air of Mars carries red dust, not white spray
+                if (leg.mode == VehicleMode.CAR) Col.rgba(0xE0A070, 0.45f) else Col.rgba(0xFFD2A0, 0.6f)
+            } else if (leg.mode == VehicleMode.CAR) Col.rgba(0xFFFFFF, 0.35f) else Col.rgba(0xCFE8FF, 0.7f)
             particles.emit(sideX, dy, spawnZ, 0f, 0f, 0f, 1.6f, 0.16f, 0.12f, c, Col.withAlpha(c, 0f), true, 0f, 0f, true)
         }
         particlesUpdate(dt, p.speed)

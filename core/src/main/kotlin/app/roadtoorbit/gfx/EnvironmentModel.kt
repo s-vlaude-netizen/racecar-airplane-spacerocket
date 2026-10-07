@@ -63,6 +63,10 @@ class EnvironmentModel {
     private val menuZenith = floatArrayOf(0.04f, 0.06f, 0.20f)
     private val menuHorizon = floatArrayOf(0.52f, 0.30f, 0.46f)
 
+    // the menu's backdrop takes on the colour of the chosen level, so picking Mars is visible at once
+    private val menuMarsZenith = floatArrayOf(0.13f, 0.05f, 0.10f)
+    private val menuMarsHorizon = floatArrayOf(0.62f, 0.31f, 0.22f)
+
     fun update(g: Game, e: Environment) {
         e.time = g.clock
         val look = g.look
@@ -146,7 +150,10 @@ class EnvironmentModel {
     }
 
     private fun menu(e: Environment, g: Game) {
-        copy(menuZenith, e.zenith); copy(menuHorizon, e.horizon); copy(menuHorizon, e.fogColor)
+        val mars = g.level.world == World.MARS
+        copy(if (mars) menuMarsZenith else menuZenith, e.zenith)
+        copy(if (mars) menuMarsHorizon else menuHorizon, e.horizon)
+        copy(if (mars) menuMarsHorizon else menuHorizon, e.fogColor)
         e.groundCol[0] = 0.20f; e.groundCol[1] = 0.12f; e.groundCol[2] = 0.28f
         e.setSun(-0.5f, 0.55f, 0.65f)
         e.sunColor[0] = 1.0f; e.sunColor[1] = 0.93f; e.sunColor[2] = 0.88f

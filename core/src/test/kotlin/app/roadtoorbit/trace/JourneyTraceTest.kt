@@ -61,6 +61,8 @@ class JourneyTraceTest {
             // Mars only: a boulder that has just started to roll across the road
             Capture("boulder") { g -> g.phase == Phase.RUN && g.legIndex == 0 && g.entities.any { e -> e.kind == Kind.BOULDER && e.vx != 0f && e.z > -60f && e.z < -30f } },
             Capture("xf1_a") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.15f },
+            // a balloon (the Moon) or a flying saucer (Mars) ahead of the plane
+            Capture("air_hazard") { g -> g.phase == Phase.RUN && g.legIndex == 1 && !g.xf.active && g.legDist > 300f && g.entities.any { e -> e.kind == Kind.BALLOON && e.z > -48f && e.z < -28f && kotlin.math.abs(e.x - g.player.x) < 7f && kotlin.math.abs(e.y - g.player.y) < 7f } },
             Capture("xf1_b") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.45f },
             Capture("xf1_c") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.8f },
             Capture("plane_150") { it.phase == Phase.RUN && it.legIndex == 1 && !it.xf.active && it.legDist > 200f },
