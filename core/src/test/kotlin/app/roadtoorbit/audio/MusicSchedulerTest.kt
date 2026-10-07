@@ -97,7 +97,8 @@ class MusicSchedulerTest {
         s.request(Track.PLANE)
         awaitUntil("restart") { out.events.size == 3 }
         s.release()
-        assertEquals(listOf("start:PLANE", "stop", "start:PLANE"), out.events.take(3).toList())
+        awaitUntil("the stop at release") { out.events.size == 4 } // release is asynchronous: compare a settled list
+        assertEquals(listOf("start:PLANE", "stop", "start:PLANE", "stop"), out.events.toList())
         assertEquals(1, renders.get(), "the second start comes from the cache")
     }
 

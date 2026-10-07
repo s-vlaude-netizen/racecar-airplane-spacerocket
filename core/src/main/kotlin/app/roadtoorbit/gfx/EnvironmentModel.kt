@@ -6,6 +6,20 @@ import app.roadtoorbit.math.Mathx
 import kotlin.math.sin
 
 /**
+ * The Moon's landing and driving strip. The rocket lands and the car drives off along the route at heights the game
+ * fixes as if the ground were flat there, so the terrain must be exactly flat in this strip - otherwise craters and
+ * ridges rise through the vehicle - and the finale camera has to stay inside it too. The shader is built from these
+ * numbers, and a test checks the vehicle and the camera against them.
+ */
+object MoonTerrain {
+    /** Half width in metres of the strip around the route that has no relief at all. */
+    const val FLAT_HALF_WIDTH = 26f
+
+    /** Distance in metres from the route at which the hills have reached their full height. */
+    const val FULL_RELIEF_AT = 90f
+}
+
+/**
  * Turns the game state into the look of the world: the sky/fog/light palette slides continuously
  * from a bright day, through a deepening blue stratosphere, into the black of space as the journey's
  * altitude rises. The "curved world" bend winds the road and finally curves the horizon away.
@@ -79,7 +93,7 @@ class EnvironmentModel {
         e.groundY = look.groundY
         e.terrainStyle = look.terrainStyle
         e.terrainAmp = if (look.terrainStyle > 1.5f) 8f else 100f
-        e.corridor = if (look.terrainStyle > 1.5f) 14f else 60f
+        e.corridor = if (look.terrainStyle > 1.5f) MoonTerrain.FLAT_HALF_WIDTH else 60f
         e.terrainTint[0] = 1f; e.terrainTint[1] = 1f; e.terrainTint[2] = 1f
 
         if (g.phase == Phase.FINALE || g.phase == Phase.VICTORY) {

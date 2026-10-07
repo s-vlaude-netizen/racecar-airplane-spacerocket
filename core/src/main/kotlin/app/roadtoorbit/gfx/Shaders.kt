@@ -236,8 +236,10 @@ float cloudHeight(vec2 xs) {
     return b * b * 30.0 + fbm(xs * 0.08) * 3.0;
 }
 float moonHeight(vec2 xs) {
-    float flat_ = smoothstep(14.0, 54.0, abs(xs.x));
-    return (craters(xs, 22.0) * 1.6 + craters(xs + 130.0, 60.0) * 2.2 + (fbm(xs * 0.05) - 0.5) * 3.0) * mix(0.35, 1.0, flat_);
+    // The landing and the victory drive happen along the route, and the game puts the vehicle at a fixed height as if
+    // the ground were flat there, so the strip around the route has no relief at all; hills only start beyond it.
+    float relief = smoothstep(${MoonTerrain.FLAT_HALF_WIDTH}, ${MoonTerrain.FULL_RELIEF_AT}, abs(xs.x));
+    return (craters(xs, 22.0) * 1.6 + craters(xs + 130.0, 60.0) * 2.2 + (fbm(xs * 0.05) - 0.5) * 3.0) * relief;
 }
 float terrainHeight(vec2 xs) {
     float st = uTer.w;
