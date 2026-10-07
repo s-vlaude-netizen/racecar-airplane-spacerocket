@@ -4,6 +4,7 @@ import app.roadtoorbit.game.Entity
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.Kind
 import app.roadtoorbit.game.Phase
+import app.roadtoorbit.game.World
 import app.roadtoorbit.gl.Gles
 import app.roadtoorbit.math.Mat4
 import app.roadtoorbit.math.Mathx
@@ -72,16 +73,22 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         val look = g.look
         val inSpace = g.legIndex == g.level.lastLeg || g.phase == Phase.FINALE || g.phase == Phase.VICTORY
         if (!inSpace || g.phase == Phase.MENU) return
-        val p = Mathx.clamp01(g.legDist / g.level.legs[2].length)
+        val mars = g.level.world == World.MARS
 
-        // Earth: sits just beneath the sinking cloud deck, then dominates the view below
-        val earthR = 4300f
+        // The planet we left: sits just beneath the sinking cloud (or dust) deck, then dominates the view below
+        val homeR = 4300f
         if (g.phase == Phase.RUN || g.phase == Phase.COUNTDOWN) {
-            val earthY = look.groundY - earthR - 60f
-            mat.reset(); mat.fogScale = 0.15f
-            mat.rim(0.18f, 0.38f, 0.8f, 3.2f)
-            Mat4.setTrs(m, -500f, earthY, -1800f, 0f, 20f + g.clock * 0.4f, 0f, earthR, earthR, earthR)
-            renderer.drawLit(renderer.meshes[MeshId.EARTH], m, mat)
+            val homeY = look.groundY - homeR - 60f
+            mat.reset(); mat.fogScale = if (mars) 0.05f else 0.15f
+            if (mars) mat.rim(0.30f, 0.14f, 0.06f, 4.2f) else mat.rim(0.18f, 0.38f, 0.8f, 3.2f)
+            Mat4.setTrs(m, -500f, homeY, -1800f, 0f, 20f + g.clock * 0.4f, 0f, homeR, homeR, homeR)
+            renderer.drawLit(renderer.meshes[if (mars) MeshId.MARS else MeshId.EARTH], m, mat)
+        } else if (mars) {
+            // finale on Phobos: Mars fills the sky behind the landing site, where the camera swings round to see it
+            mat.reset(); mat.fogScale = 0f
+            mat.rim(0.55f, 0.30f, 0.16f, 2.6f)
+            Mat4.setTrs(m, -2800f, 900f, 3300f, 0f, 200f, 0f, 1150f, 1150f, 1150f)
+            renderer.drawLit(renderer.meshes[MeshId.MARS], m, mat)
         } else {
             // finale: a small Earth hangs in the sky ("earthrise")
             mat.reset(); mat.fogScale = 0f
@@ -90,7 +97,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             renderer.drawLit(renderer.meshes[MeshId.EARTH], m, mat)
         }
 
-        // The Moon grows ahead and slips beneath us during the final approach
+        // The destination (the Moon, or Phobos) grows ahead and slips beneath us during the final approach
         if (g.legIndex == g.level.lastLeg && g.phase != Phase.CRASHING || g.phase == Phase.FINALE) {
             val mApp = if (g.phase == Phase.FINALE || g.phase == Phase.VICTORY) 1f else look.moonApproach
             if (mApp > 0f || g.phase == Phase.FINALE) {
@@ -101,7 +108,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                 val z = Mathx.lerp(-21000f, -700f, mApp.pow(1.6f))
                 mat.reset(); mat.fogScale = 0f
                 Mat4.setTrs(m, x, y, z, 0f, 30f, 0f, r, r, r)
-                renderer.drawLit(renderer.meshes[MeshId.MOON], m, mat)
+                renderer.drawLit(renderer.meshes[if (mars) MeshId.PHOBOS else MeshId.MOON], m, mat)
             }
         }
     }
@@ -128,6 +135,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         val seg = renderer.meshes[MeshId.ROAD_SEGMENT]
         var s0 = floor((routeS - 40f) / SEG) * SEG
         mat.reset().gloss(0.04f, 8f)
+        if (g.level.world == World.MARS) mat.tint(1.10f, 0.84f, 0.72f) // dust on the asphalt
         while (s0 < routeS + 800f && s0 < endRoute) {
             if (s0 + SEG > -30f) {
                 Mat4.setTrs(m, 0f, env.groundY, -(s0 - routeS), 0f, 0f, 0f, 1f, 1f, 1f)
@@ -149,6 +157,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
 
     private fun drawEntity(g: Game, e: Entity) {
         val y = g.entityY(e)
+        val mars = g.level.world == World.MARS
         mat.reset()
         var id: MeshId
         var sx = e.scale
@@ -157,7 +166,11 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         var ty = y
         when (e.kind) {
             Kind.TRAFFIC -> {
-                id = when (e.variant) {
+                id = if (mars) when (e.variant) {
+                    4 -> HAULERS[e.tint % 3]
+                    5 -> CRAWLERS[e.tint % 3]
+                    else -> ROVERS[e.tint % 3]
+                } else when (e.variant) {
                     4 -> TRUCKS[e.tint % 3]
                     5 -> VANS[e.tint % 3]
                     else -> SEDANS[e.tint % 6]
@@ -173,7 +186,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             Kind.REPAIR -> { id = MeshId.REPAIR; mat.emissive = 0.3f; mat.rim(0.2f, 1f, 0.5f, 2.5f); sx = 1f; sy = 1f; sz = 1f }
             Kind.TREE_PINE -> id = PINES[e.variant % 3]
             Kind.TREE_ROUND -> id = ROUND_TREES[e.variant % 3]
-            Kind.ROCK -> id = ROCKS[e.variant % 3]
+            Kind.ROCK -> { id = ROCKS[e.variant % 3]; if (mars) mat.tint(1.28f, 0.66f, 0.48f) }
             Kind.BILLBOARD -> { id = BILLBOARDS[e.variant % 4]; sx = 1f; sy = 1f; sz = 1f }
             Kind.START_ARCH -> { id = MeshId.START_ARCH; sx = 1f; sy = 1f; sz = 1f; ty = g.look.groundY }
             Kind.GATE_ARCH -> {
@@ -184,16 +197,20 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             }
             Kind.RAMP -> { id = MeshId.RAMP; sx = 1f; sy = 1f; sz = 1f; ty = g.look.groundY }
             Kind.PEAK -> {
-                id = PEAKS[e.variant % 3]
+                id = if (mars) SPIRES[e.variant % 3] else PEAKS[e.variant % 3]
                 sx = e.hx; sz = e.hx; sy = e.hy * 2f
                 ty = y - e.hy
             }
-            Kind.BALLOON -> { id = BALLOONS[e.variant % 4]; sx = 1f; sy = 1f; sz = 1f }
+            Kind.BALLOON -> {
+                if (mars) { id = SAUCERS[e.variant % 4]; mat.gloss(0.5f, 40f); mat.emissive = 0.18f } else id = BALLOONS[e.variant % 4]
+                sx = 1f; sy = 1f; sz = 1f
+            }
             Kind.STORM -> {
                 id = STORMS[e.variant % 2]
                 val k = e.radius / 1.4f
                 sx = k; sy = k; sz = k
-                val flash = lightning(e)
+                if (mars) mat.tint(1.5f, 1.0f, 0.62f) // dust storms: no lightning, a brown-orange haze
+                val flash = if (mars) 0f else lightning(e)
                 if (flash > 0.01f) {
                     mat.tint(1f + 1.4f * flash, 1f + 1.4f * flash, 1f + 1.6f * flash)
                     mat.emissive = 0.5f * flash
@@ -203,7 +220,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                     }
                 }
             }
-            Kind.JET -> { id = JETS[e.variant % 3]; mat.gloss(0.3f, 20f); sx = 1f; sy = 1f; sz = 1f }
+            Kind.JET -> { id = if (mars) MARS_JETS[e.variant % 3] else JETS[e.variant % 3]; mat.gloss(0.3f, 20f); sx = 1f; sy = 1f; sz = 1f }
             Kind.RING -> {
                 id = MeshId.RING; mat.emissive = 0.9f; mat.fogScale = 0.5f
                 if (e.hit) mat.tint(1f, 1f, 1f, 1f)
@@ -211,6 +228,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             Kind.ORB -> { id = MeshId.ORB; mat.emissive = 0.9f; mat.rim(0.4f, 1f, 1f, 2f); sx = 1f; sy = 1f; sz = 1f }
             Kind.CLOUD -> {
                 id = CLOUDS[e.variant % 3]; mat.fogScale = 0.7f; mat.emissive = 0.32f
+                if (mars) mat.tint(0.98f, 0.74f, 0.55f) // puffs of dust
                 // clouds melt away as we leave the atmosphere
                 val fade = 1f - Mathx.smoothstep(1.0f, 1.14f, g.look.altitude)
                 if (fade <= 0.01f) return
@@ -221,7 +239,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                 mat.emissive = 0.9f; mat.fogScale = 0.4f
                 sx = 1f; sy = 1f; sz = 1f
             }
-            Kind.ASTEROID -> { id = ASTEROIDS[e.variant % 4]; mat.gloss(0.08f, 10f) }
+            Kind.ASTEROID -> { id = ASTEROIDS[e.variant % 4]; mat.gloss(0.08f, 10f); if (mars) mat.tint(1.12f, 0.82f, 0.68f) }
             Kind.SATELLITE -> { id = MeshId.SATELLITE; mat.gloss(0.6f, 30f); sx = 1f; sy = 1f; sz = 1f }
             Kind.CRYSTAL -> { id = MeshId.CRYSTAL; mat.gloss(0.8f, 50f); mat.emissive = 0.7f; mat.rim(0.3f, 0.9f, 1f, 2.2f); sx = 1f; sy = 1f; sz = 1f }
             Kind.PLANET -> {
@@ -229,6 +247,10 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                 mat.rim(0.15f, 0.2f, 0.35f, 2.5f)
             }
             Kind.MOON -> return
+            Kind.MESA -> id = MESAS[e.variant % 3]
+            Kind.DEVIL -> id = MeshId.DEVIL
+            Kind.DOME -> id = MeshId.DOME
+            Kind.BOULDER -> { id = ASTEROIDS[e.variant % 4]; mat.gloss(0.08f, 10f); mat.tint(0.66f, 0.52f, 0.46f); mat.rim(0.95f, 0.38f, 0.10f, 2.6f) } // dark basalt with a hot rim: not scenery
         }
         // tint multipliers chosen by the spawner (balloons/billboards keep their own colours)
         Mat4.setTrs(m, e.x, ty, e.z, e.rx, e.ry, e.rz, sx, sy, sz)
@@ -320,5 +342,12 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         val CLOUDS = arrayOf(MeshId.CLOUD_0, MeshId.CLOUD_1, MeshId.CLOUD_2)
         val ASTEROIDS = arrayOf(MeshId.ASTEROID_0, MeshId.ASTEROID_1, MeshId.ASTEROID_2, MeshId.ASTEROID_3)
         val PLANETS = arrayOf(MeshId.PLANET_0, MeshId.PLANET_1, MeshId.PLANET_2, MeshId.PLANET_3)
+        val ROVERS = arrayOf(MeshId.ROVER_0, MeshId.ROVER_1, MeshId.ROVER_2)
+        val HAULERS = arrayOf(MeshId.HAULER_0, MeshId.HAULER_1, MeshId.HAULER_2)
+        val CRAWLERS = arrayOf(MeshId.CRAWLER_0, MeshId.CRAWLER_1, MeshId.CRAWLER_2)
+        val MESAS = arrayOf(MeshId.MESA_0, MeshId.MESA_1, MeshId.MESA_2)
+        val SPIRES = arrayOf(MeshId.SPIRE_0, MeshId.SPIRE_1, MeshId.SPIRE_2)
+        val SAUCERS = arrayOf(MeshId.SAUCER_0, MeshId.SAUCER_1, MeshId.SAUCER_2, MeshId.SAUCER_3)
+        val MARS_JETS = arrayOf(MeshId.MARS_JET_0, MeshId.MARS_JET_1, MeshId.MARS_JET_2)
     }
 }

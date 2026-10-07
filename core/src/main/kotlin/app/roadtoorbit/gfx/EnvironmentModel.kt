@@ -4,6 +4,7 @@ import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.game.World
 import app.roadtoorbit.math.Mathx
+import kotlin.math.cos
 import kotlin.math.sin
 
 /**
@@ -134,6 +135,13 @@ class EnvironmentModel {
             e.sunColor[0] = 1.05f; e.sunColor[1] = 1.02f; e.sunColor[2] = 0.97f
             e.nebula = 0.7f
             e.starAmount = 1f
+            if (isMars) {
+                // the sun stays behind the camera as it swings round the landing, so the car and Mars (which hangs
+                // behind the landing site) are lit when the victory drive is in view
+                val swing = Mathx.smoother((g.finaleT - 1f) / 6f)
+                val sunAz = swing * 2.55f - 0.15f * (1f - swing) + 0.55f
+                e.setSun(sin(sunAz) * 0.78f, 0.42f, cos(sunAz) * 0.78f)
+            }
         }
     }
 

@@ -17,6 +17,9 @@ enum class Kind(val category: Category) {
     // --- space leg
     ASTEROID(Category.HAZARD), SATELLITE(Category.HAZARD), CRYSTAL(Category.PICKUP),
     PLANET(Category.DECOR), MOON(Category.GATE),
+
+    // --- Mars: scenery, and the boulders that start rolling across the road as the car approaches
+    MESA(Category.DECOR), DEVIL(Category.DECOR), DOME(Category.DECOR), BOULDER(Category.HAZARD),
 }
 
 /**
@@ -60,6 +63,10 @@ class Entity {
     var hit = false
     var passed = false
     var age = 0f
+
+    /** A delayed start: once the entity has come within [armZ] (a negative z), it takes up the sideways speed [armVx]. */
+    var armZ = 0f
+    var armVx = 0f
     var tint = 0 // 0 = default colours, otherwise 0xRRGGBB multiplier chosen by the spawner
     var param = 0f // spare per-kind value (e.g. ring radius, gate width)
     /** Smallest clearance to the player seen while alongside (near-miss detection). */
@@ -82,6 +89,7 @@ class Entity {
         hit = false
         passed = false
         age = 0f
+        armZ = 0f; armVx = 0f
         tint = 0
         param = 0f
         minGap = 1e9f

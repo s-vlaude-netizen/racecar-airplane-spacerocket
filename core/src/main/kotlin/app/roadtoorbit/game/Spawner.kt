@@ -37,6 +37,8 @@ internal class Spawner(private val g: Game) {
         e.z = -16f
     }
 
+    private val mars: Boolean get() = g.level.world == World.MARS
+
     fun update() {
         val leg = g.leg
         val hazardEnd = leg.length - hazardFreeTail(leg)
@@ -59,7 +61,7 @@ internal class Spawner(private val g: Game) {
         while (g.decorCursor - g.legDist < leg.spawnAhead + 80f) {
             val s = g.decorCursor
             g.decorCursor += when (leg.index) {
-                0 -> carDecor(s)
+                0 -> if (mars) marsCarDecor(s) else carDecor(s)
                 1 -> skyDecor(s)
                 else -> spaceDecor(s)
             }
@@ -148,6 +150,7 @@ internal class Spawner(private val g: Game) {
             if (needsRepair) 0.9f else 0.05f, // repair
             2.6f * max(0f, d - 0.35f), // chicane
         )
+        if (mars) return marsCarPattern(s, d, w)
         return when (pickWeighted(w)) {
             0 -> coinLine(s) + 14f
             1 -> coinWave(s) + 14f
@@ -161,6 +164,54 @@ internal class Spawner(private val g: Game) {
             9 -> repair(s) + 12f
             else -> chicane(s, d) + gap(d)
         }
+    }
+
+    /** The Martian highway: the same patterns, with boulders that start rolling across the road in place of some of them. */
+    private fun marsCarPattern(s: Float, d: Float, base: FloatArray): Float {
+        val w = base.copyOf(base.size + 1)
+        w[base.size] = 1.2f + 2.6f * d // rockfall
+        return when (pickWeighted(w)) {
+            0 -> coinLine(s) + 14f
+            1 -> coinWave(s) + 14f
+            2 -> trafficSingle(s, d) + gap(d)
+            3 -> trafficPair(s, d) + gap(d)
+            4 -> barrierSingle(s) + gap(d)
+            5 -> barrierWall(s, d) + gap(d)
+            6 -> coneSlalom(s) + gap(d) * 0.6f
+            7 -> barrels(s) + gap(d)
+            8 -> nitro(s) + 12f
+            9 -> repair(s) + 12f
+            10 -> chicane(s, d) + gap(d)
+            else -> rockfall(s, d) + gap(d) * 0.8f
+        }
+    }
+
+    /**
+     * Boulders wait at the roadside, then start to roll across the road about 1.5 - 1.9 seconds before they reach the
+     * car, each aimed at a lane; the pass-by is timed, not the approach. A coin trail marks a lane none of them aims at.
+     */
+    private fun rockfall(s: Float, d: Float): Float {
+        val n = 2 + (d * 2.2f).toInt()
+        val leg = g.leg
+        val est = Mathx.lerp(leg.speedStart, leg.speedEnd, Mathx.clamp01(g.legDist / leg.length)) * g.difficulty.speedScale
+        val aimed = BooleanArray(Tuning.LANES)
+        var side = rng.sign()
+        for (k in 0 until n) {
+            val r = rng.range(1.0f, 1.5f)
+            val lane = rng.int(Tuning.LANES)
+            aimed[lane] = true
+            val e = place(Kind.BOULDER, s, k * 28f, side * rng.range(9.5f, 11.5f), r, variant = rng.int(4))
+            e.radius = r * 0.9f
+            e.scale = r
+            val seconds = rng.range(1.5f, 1.9f)
+            e.armZ = -est * seconds
+            e.armVx = (laneX(lane) - e.x) / seconds
+            side = -side
+        }
+        var safe = -1
+        for (i in 0 until Tuning.LANES) if (!aimed[i] && safe < 0) safe = i
+        if (safe >= 0) for (k in 0 until n * 4) place(Kind.COIN, s, 6f + k * 6f, laneX(safe))
+        return n * 28f + 24f
     }
 
     private fun coinLine(s: Float): Float {
@@ -340,6 +391,11 @@ internal class Spawner(private val g: Game) {
         for (k in 0 until n) {
             val e = place(Kind.BALLOON, s, k * rng.range(16f, 24f), flyX(), flyY(), variant = rng.int(4))
             e.tint = rng.int(6)
+            if (mars) {
+                // a flying saucer: 6 m across but thin, so it hits like a disc and not like a ball
+                e.radius = 0f; e.hx = 2.7f; e.hy = 0.85f; e.hz = 2.7f
+                e.spinY = 28f
+            }
         }
         return n * 22f
     }
@@ -567,12 +623,30 @@ internal class Spawner(private val g: Game) {
         return rng.range(9f, 20f)
     }
 
+    private fun marsCarDecor(s: Float): Float {
+        val side = rng.sign()
+        val r = rng.float()
+        when {
+            r < 0.50f -> place(Kind.ROCK, s, 0f, side * rng.range(13f, 40f), 0f, variant = rng.int(3)).apply { scale = rng.range(0.8f, 2.3f); groundBound = true; ry = rng.range(0f, 360f) }
+            r < 0.68f -> place(Kind.MESA, s, 0f, side * rng.range(34f, 58f), 0f, variant = rng.int(3)).apply { scale = rng.range(0.6f, 1.4f); groundBound = true; ry = rng.range(0f, 360f) }
+            r < 0.78f -> place(Kind.DEVIL, s, 0f, side * rng.range(16f, 58f), 0f).apply { scale = rng.range(0.55f, 1.3f); groundBound = true; spinY = rng.range(40f, 90f) * rng.sign() }
+            r < 0.82f -> place(Kind.DOME, s, 0f, side * rng.range(30f, 50f), 0f).apply { scale = rng.range(0.8f, 1.2f); groundBound = true; ry = rng.range(0f, 360f) }
+            else -> place(Kind.ROCK, s, 0f, side * rng.range(10.5f, 30f), 0f, variant = rng.int(3)).apply { scale = rng.range(0.6f, 1.4f); groundBound = true; ry = rng.range(0f, 360f) }
+        }
+        // colony signs hug the road now and then
+        if (rng.chance(0.045f)) {
+            place(Kind.BILLBOARD, s, 4f, -side * 12.5f, 0f, variant = rng.int(4)).apply { groundBound = true; ry = if (-side > 0) -12f else 12f }
+        }
+        return rng.range(9f, 20f)
+    }
+
     private fun skyDecor(s: Float): Float {
         val look = g.look
         if (g.legDist < 700f && look.groundY > -50f) {
             val side = rng.sign()
-            val e = place(Kind.TREE_PINE, s, 0f, side * rng.range(12f, 36f), 0f, variant = rng.int(3))
-            e.scale = rng.range(0.9f, 1.8f); e.groundBound = true
+            val e = place(if (mars) Kind.ROCK else Kind.TREE_PINE, s, 0f, side * rng.range(12f, 36f), 0f, variant = rng.int(3))
+            e.scale = if (mars) rng.range(1.2f, 3.0f) else rng.range(0.9f, 1.8f)
+            e.groundBound = true
         }
         // puffy clouds off to the sides, above and below the flight corridor (never inside it)
         val side = rng.sign()

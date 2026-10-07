@@ -120,7 +120,7 @@ class AudioEngine(
      * and engine hum belong to the current moment; nothing here may spawn work or block.
      */
     fun update(game: Game, paused: Boolean) {
-        music.request(MusicPolicy.wanted(game.phase, game.legIndex, enabled, musicEnabled))
+        music.request(MusicPolicy.wanted(game.phase, game.legIndex, enabled, musicEnabled, game.level.world))
         if (paused || !enabled) {
             silenceEngine()
             return

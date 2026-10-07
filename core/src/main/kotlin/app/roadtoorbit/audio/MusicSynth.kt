@@ -15,17 +15,22 @@ import kotlin.math.sin
 object MusicSynth {
     private const val RATE = SoundSynth.SAMPLE_RATE
 
-    enum class Track { MENU, CAR, PLANE, ROCKET, FINALE }
+    /** The menu loop and, per level, one for each leg and the finale: the Martian ones are in another key and mood. */
+    enum class Track { MENU, CAR, PLANE, ROCKET, FINALE, MARS_CAR, MARS_PLANE, MARS_ROCKET, MARS_FINALE }
 
     private const val BARS = 8
 
     fun render(track: Track): ShortArray {
         val m = when (track) {
             Track.MENU -> menu()
-            Track.CAR -> car()
-            Track.PLANE -> plane()
-            Track.ROCKET -> rocket()
-            Track.FINALE -> finale()
+            Track.CAR -> car(false)
+            Track.PLANE -> plane(false)
+            Track.ROCKET -> rocket(false)
+            Track.FINALE -> finale(false)
+            Track.MARS_CAR -> car(true)
+            Track.MARS_PLANE -> plane(true)
+            Track.MARS_ROCKET -> rocket(true)
+            Track.MARS_FINALE -> finale(true)
         }
         return m.toPcm()
     }
@@ -157,12 +162,14 @@ object MusicSynth {
 
     // ---- tracks ------------------------------------------------------------------------------------
 
-    private fun car(): Mix {
-        val bpm = 132f
+    private fun car(mars: Boolean): Mix {
+        val bpm = if (mars) 124f else 132f
         val m = Mix(loopSamples(bpm), bpm)
-        val n = Noise(3)
-        val roots = intArrayOf(45, 41, 48, 43, 45, 41, 43, 40)
-        val minor = booleanArrayOf(true, false, false, false, true, false, false, false)
+        val n = Noise(if (mars) 23 else 3)
+        // Mars: D minor, i - VI - iv - V, then i - VI - VII - V
+        val roots = if (mars) intArrayOf(50, 46, 43, 45, 50, 46, 48, 45) else intArrayOf(45, 41, 48, 43, 45, 41, 43, 40)
+        val minor = if (mars) booleanArrayOf(true, false, true, false, true, false, false, false) else booleanArrayOf(true, false, false, false, true, false, false, false)
+        val arp = if (mars) intArrayOf(0, 2, 1, 2, 1, 2, 0, 1) else intArrayOf(0, 1, 2, 1, 2, 1, 0, 2)
         for (bar in 0 until BARS) {
             val b0 = (bar * 4 * m.beat).toInt()
             val root = roots[bar]
@@ -180,21 +187,22 @@ object MusicSynth {
                     note(m.bass, at, m.step * 1.6f / RATE, hz(root.toFloat() + oct), 0.30f, Wave.SAW, 0.004f, 0.06f, 520f)
                 }
                 // arpeggio
-                val idx = intArrayOf(0, 1, 2, 1, 2, 1, 0, 2)[s % 8]
+                val idx = arp[s % 8]
                 val top = if (s % 8 >= 4) 12 else 0
-                note(m.lead, at, m.step * 0.8f / RATE, hz(root + 36f + q[idx] + top), 0.085f, Wave.PULSE, 0.003f, 0.07f, 4200f)
+                note(m.lead, at, m.step * 0.8f / RATE, hz(root + 36f + q[idx] + top), 0.085f, if (mars) Wave.SAW else Wave.PULSE, 0.003f, 0.07f, if (mars) 3000f else 4200f)
             }
         }
         return m
     }
 
-    private fun plane(): Mix {
-        val bpm = 108f
+    private fun plane(mars: Boolean): Mix {
+        val bpm = if (mars) 100f else 108f
         val m = Mix(loopSamples(bpm), bpm)
-        val n = Noise(5)
-        val roots = intArrayOf(48, 43, 45, 41, 48, 43, 41, 43)
-        val minor = booleanArrayOf(false, false, true, false, false, false, false, false)
-        val melody = floatArrayOf(76f, 79f, 81f, 79f, 76f, 74f, 77f, 79f)
+        val n = Noise(if (mars) 25 else 5)
+        // Mars: A minor, i - VI - VII - III, then i - VI - III - V
+        val roots = if (mars) intArrayOf(45, 41, 43, 48, 45, 41, 48, 40) else intArrayOf(48, 43, 45, 41, 48, 43, 41, 43)
+        val minor = if (mars) booleanArrayOf(true, false, false, false, true, false, false, false) else booleanArrayOf(false, false, true, false, false, false, false, false)
+        val melody = if (mars) floatArrayOf(72f, 76f, 79f, 76f, 72f, 77f, 79f, 76f) else floatArrayOf(76f, 79f, 81f, 79f, 76f, 74f, 77f, 79f)
         for (bar in 0 until BARS) {
             val b0 = (bar * 4 * m.beat).toInt()
             val root = roots[bar]
@@ -219,12 +227,13 @@ object MusicSynth {
         return m
     }
 
-    private fun rocket(): Mix {
-        val bpm = 96f
+    private fun rocket(mars: Boolean): Mix {
+        val bpm = if (mars) 90f else 96f
         val m = Mix(loopSamples(bpm), bpm)
-        val n = Noise(9)
-        val roots = intArrayOf(40, 36, 43, 38, 40, 36, 38, 35)
-        val minor = booleanArrayOf(true, false, false, false, true, false, false, false)
+        val n = Noise(if (mars) 29 else 9)
+        // Mars: D minor, a slow descent: i - VII - VI - V, then i - VII - V - iv
+        val roots = if (mars) intArrayOf(38, 36, 34, 33, 38, 36, 33, 43) else intArrayOf(40, 36, 43, 38, 40, 36, 38, 35)
+        val minor = if (mars) booleanArrayOf(true, false, false, false, true, false, false, true) else booleanArrayOf(true, false, false, false, true, false, false, false)
         for (bar in 0 until BARS) {
             val b0 = (bar * 4 * m.beat).toInt()
             val root = roots[bar]
@@ -269,12 +278,13 @@ object MusicSynth {
         return m
     }
 
-    private fun finale(): Mix {
-        val bpm = 112f
+    private fun finale(mars: Boolean): Mix {
+        val bpm = if (mars) 116f else 112f
         val m = Mix(loopSamples(bpm), bpm)
-        val n = Noise(17)
-        val roots = intArrayOf(48, 53, 55, 48, 45, 53, 55, 48)
-        val minor = booleanArrayOf(false, false, false, false, true, false, false, false)
+        val n = Noise(if (mars) 37 else 17)
+        // Mars: D major, I - VI - IV - I, then vi - IV - V - I
+        val roots = if (mars) intArrayOf(50, 46, 55, 50, 47, 55, 57, 50) else intArrayOf(48, 53, 55, 48, 45, 53, 55, 48)
+        val minor = if (mars) booleanArrayOf(false, false, false, false, true, false, false, false) else booleanArrayOf(false, false, false, false, true, false, false, false)
         for (bar in 0 until BARS) {
             val b0 = (bar * 4 * m.beat).toInt()
             val root = roots[bar]

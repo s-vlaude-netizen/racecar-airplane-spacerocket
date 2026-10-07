@@ -4,6 +4,7 @@ import app.roadtoorbit.game.Bot
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.GameInput
 import app.roadtoorbit.game.HudState
+import app.roadtoorbit.game.Kind
 import app.roadtoorbit.game.Levels
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.gfx.SceneRenderer
@@ -57,6 +58,8 @@ class JourneyTraceTest {
             Capture("car_900") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 900f },
             Capture("car_1800") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 1800f },
             Capture("car_zone") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 2560f },
+            // Mars only: a boulder that has just started to roll across the road
+            Capture("boulder") { g -> g.phase == Phase.RUN && g.legIndex == 0 && g.entities.any { e -> e.kind == Kind.BOULDER && e.vx != 0f && e.z > -60f && e.z < -30f } },
             Capture("xf1_a") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.15f },
             Capture("xf1_b") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.45f },
             Capture("xf1_c") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.8f },

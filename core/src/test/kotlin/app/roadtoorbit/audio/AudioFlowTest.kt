@@ -4,7 +4,9 @@ import app.roadtoorbit.audio.MusicSynth.Track
 import app.roadtoorbit.game.Bot
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.GameInput
+import app.roadtoorbit.game.Levels
 import app.roadtoorbit.game.Phase
+import app.roadtoorbit.game.World
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,6 +25,16 @@ class AudioFlowTest {
         assertEquals(Track.FINALE, MusicPolicy.wanted(Phase.FINALE, 2, true, true))
         assertEquals(Track.FINALE, MusicPolicy.wanted(Phase.VICTORY, 2, true, true))
         assertNull(MusicPolicy.wanted(Phase.GAME_OVER, 1, true, true))
+        // Mars has its own loops for the legs and the finale, but shares the menu loop
+        assertEquals(Track.MENU, MusicPolicy.wanted(Phase.MENU, 0, true, true, World.MARS))
+        for (phase in listOf(Phase.COUNTDOWN, Phase.RUN, Phase.CRASHING)) {
+            assertEquals(Track.MARS_CAR, MusicPolicy.wanted(phase, 0, true, true, World.MARS))
+            assertEquals(Track.MARS_PLANE, MusicPolicy.wanted(phase, 1, true, true, World.MARS))
+            assertEquals(Track.MARS_ROCKET, MusicPolicy.wanted(phase, 2, true, true, World.MARS))
+        }
+        assertEquals(Track.MARS_FINALE, MusicPolicy.wanted(Phase.FINALE, 2, true, true, World.MARS))
+        assertEquals(Track.MARS_FINALE, MusicPolicy.wanted(Phase.VICTORY, 2, true, true, World.MARS))
+        assertNull(MusicPolicy.wanted(Phase.GAME_OVER, 1, true, true, World.MARS))
         for (phase in Phase.values()) {
             assertNull(MusicPolicy.wanted(phase, 0, soundOn = false, musicOn = true), "sound off silences $phase")
             assertNull(MusicPolicy.wanted(phase, 0, soundOn = true, musicOn = false), "music off silences $phase")
@@ -36,6 +48,10 @@ class AudioFlowTest {
      */
     @Test
     fun theRequestChangesOnlyWhenThePhaseDoes() {
+        for (level in Levels.ALL) theRequestChangesOnlyWhenThePhaseDoes(level)
+    }
+
+    private fun theRequestChangesOnlyWhenThePhaseDoes(level: app.roadtoorbit.game.LevelSpec) {
         val out = object : MusicScheduler.Output {
             val events = CopyOnWriteArrayList<String>()
             override fun start(track: Track, pcm: ShortArray) { events.add("start:$track") }
@@ -43,6 +59,7 @@ class AudioFlowTest {
         }
         val scheduler = MusicScheduler(out, { _ -> ShortArray(16) }, "music-flow")
         val game = Game(5)
+        game.level = level
         val input = GameInput()
         val dt = 1f / 60f
 
@@ -52,7 +69,7 @@ class AudioFlowTest {
         var first = true
         fun frame() {
             game.update(dt, input)
-            val wanted = MusicPolicy.wanted(game.phase, game.legIndex, true, true)
+            val wanted = MusicPolicy.wanted(game.phase, game.legIndex, true, true, game.level.world)
             scheduler.request(wanted)
             requests++
             if (first || wanted != last) changes++
@@ -89,7 +106,7 @@ class AudioFlowTest {
 
         // menu -> car -> plane -> rocket -> finale -> menu -> car -> silence is about eight changes
         assertTrue(requests > 10_000, "the session should span many frames ($requests)")
-        assertTrue(changes <= 12, "the music request flipped $changes times in $requests frames")
+        assertTrue(changes <= 12, "${level.name}: the music request flipped $changes times in $requests frames")
 
         Thread.sleep(300)
         scheduler.release()

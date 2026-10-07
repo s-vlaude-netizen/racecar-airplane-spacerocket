@@ -479,6 +479,12 @@ class Game(seed: Long = 1L) {
         while (i < entities.size) {
             val e = entities[i]
             e.age += dt
+            if (e.armVx != 0f && e.z > e.armZ) {
+                // a boulder that waited at the roadside starts to roll
+                e.vx = e.armVx
+                e.armVx = 0f
+                e.spinZ = -e.vx / max(e.radius, 0.5f) * (180f / PI.toFloat())
+            }
             e.z += (speed * e.parallax - e.speed) * dt
             e.x += e.vx * dt
             e.y += e.vy * dt

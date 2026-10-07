@@ -93,7 +93,11 @@ internal object WorldMeshes {
             MeshId.PLANET_RING -> b.rotateX(90f).scale(1f, 1f, 0.02f).torus(1.7f, 0.22f, 48, 5, rgb(0xD9C7A0), rgb(0xB8A27A))
             MeshId.EARTH -> earth(b)
             MeshId.MOON -> moon(b)
-            else -> b.box(1f, 1f, 1f, rgb(0xFF00FF))
+
+            MeshId.MARS_JET_0 -> jet(b, rgb(0xE9E5DC), rgb(0xE8641E))
+            MeshId.MARS_JET_1 -> jet(b, rgb(0xD7DCE3), rgb(0x1FB5A8))
+            MeshId.MARS_JET_2 -> jet(b, rgb(0xC9B48A), rgb(0x3F4A9A))
+            else -> MarsMeshes.build(id, b)
         }
     }
 
@@ -156,7 +160,7 @@ internal object WorldMeshes {
     }
 
     /** Wheels shared by the traffic models: cylinder axis along X. */
-    private fun wheel(b: MeshBuilder, x: Float, y: Float, z: Float, r: Float, w: Float) {
+    internal fun wheel(b: MeshBuilder, x: Float, y: Float, z: Float, r: Float, w: Float) {
         b.push().translate(x, y, z).rotateZ(90f)
         b.cylinder(r, r, w, 12, rgb(0x1B1C20), rgb(0x1B1C20), smooth = true)
         b.push().translate(0f, if (x > 0) w * 0.51f else -w * 0.51f, 0f).cylinder(r * 0.55f, r * 0.55f, 0.02f, 8, rgb(0xB9C0CB), rgb(0xB9C0CB), smooth = false).pop()

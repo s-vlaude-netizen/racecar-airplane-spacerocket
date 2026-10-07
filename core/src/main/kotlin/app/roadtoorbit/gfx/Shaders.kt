@@ -341,7 +341,7 @@ void main() {
     vec3 cloudHi = mix(vec3(1.0, 1.0, 1.0), vec3(0.98, 0.82, 0.64), uWorld);
     vec3 cloudCol = mix(cloudLo, cloudHi, smoothstep(0.0, 0.7, hn + (blotch - 0.5) * 0.4));
 
-    vec3 dust = mix(vec3(0.60, 0.59, 0.58), vec3(0.38, 0.33, 0.30), uWorld) * (0.82 + 0.3 * blotch) * (0.9 + 0.2 * speck);
+    vec3 dust = mix(vec3(0.60, 0.59, 0.58), vec3(0.45, 0.39, 0.35), uWorld) * (0.82 + 0.3 * blotch) * (0.9 + 0.2 * speck);
     vec3 col = mix(grass, cloudCol, clamp(st, 0.0, 1.0));
     col = mix(col, dust, clamp(st - 1.0, 0.0, 1.0));
     col *= uTerCol.rgb;
