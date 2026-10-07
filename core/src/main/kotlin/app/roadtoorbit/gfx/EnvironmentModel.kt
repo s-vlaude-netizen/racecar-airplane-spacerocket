@@ -19,6 +19,40 @@ object MoonTerrain {
 
     /** Distance in metres from the route at which the hills have reached their full height. */
     const val FULL_RELIEF_AT = 90f
+
+    /**
+     * Mountain ranges stand far to both sides of the route: nothing before [RANGE_FROM] metres from it (the fine grid
+     * ends well before that), full height of [RANGE_HEIGHT] metres from [RANGE_FULL] on. Seen across the plain they
+     * are the Moon's skyline.
+     */
+    const val RANGE_FROM = 320f
+    const val RANGE_FULL = 1200f
+    const val RANGE_HEIGHT = 230f
+
+    /**
+     * The landscape is two grids of the same terrain function: a fine one around the vehicle (the craters and the landing
+     * strip) and a coarse one under it that reaches the horizon, so that the plain has no visible edge. Both are laid out
+     * around the vehicle: a grid has [rows] rows of [cell] metres, [behind] of them behind it, and [cols] columns centred on
+     * the route.
+     */
+    const val NEAR_CELL = 4f
+    const val NEAR_COLS = 96
+    const val NEAR_ROWS = 160
+    const val NEAR_BEHIND = 60
+    const val FAR_CELL = 24f
+    const val FAR_COLS = 168
+    const val FAR_ROWS = 168
+    const val FAR_BEHIND = 84
+
+    /**
+     * The coarse grid is only drawn once the vehicle is lower than [FAR_FROM_ALTITUDE] metres above the ground: from the
+     * height at the start of the landing the Moon is a ball, and a flat plain reaching to the horizon would spoil that.
+     * It fades in out of the dark (its fog starts [FAR_FOG_BOOST] times thicker) and the mountains rise to full height
+     * while the vehicle comes down to [RANGE_RISES_BY].
+     */
+    const val FAR_FROM_ALTITUDE = 35f
+    const val RANGE_RISES_BY = 8f
+    const val FAR_FOG_BOOST = 25f
 }
 
 /** The colours of one world at ground level, at the edge of space and in space, plus its light. */
@@ -132,8 +166,8 @@ class EnvironmentModel {
         e.terrainTint[0] = 1f; e.terrainTint[1] = 1f; e.terrainTint[2] = 1f
 
         if (g.phase == Phase.FINALE || g.phase == Phase.VICTORY) {
-            // moon plain: ink-black sky, hard sun, a little ground fog so the flat terrain edge dissolves
-            e.fogDensity = 0.0021f
+            // moon plain: ink-black sky, hard sun, and a light haze that darkens the far mountains a little
+            e.fogDensity = 0.0012f
             e.fogColor[0] = 0.03f; e.fogColor[1] = 0.035f; e.fogColor[2] = 0.06f
             e.bendX = 0f; e.bendY = 0f
             e.sunColor[0] = 1.05f; e.sunColor[1] = 1.02f; e.sunColor[2] = 0.97f

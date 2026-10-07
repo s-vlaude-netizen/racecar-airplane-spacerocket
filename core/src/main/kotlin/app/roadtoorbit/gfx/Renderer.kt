@@ -12,6 +12,17 @@ import app.roadtoorbit.math.Mat4
 enum class Blend { OPAQUE, ALPHA, ADDITIVE }
 
 /**
+ * The area a terrain grid covers (the player is at z = 0): |x| <= [halfWidth] and [zFar] <= z <= [zNear]. A coarser grid
+ * drawn under it sinks by [sink] metres inside this area, so that the finer grid is always the one that shows.
+ */
+class TerrainWindow {
+    var halfWidth = 0f
+    var zFar = 0f
+    var zNear = 0f
+    var sink = 14f
+}
+
+/**
  * Owns the shader programs and the frame-level GL state. Scene code (SceneRenderer, particles, the
  * vehicle) issues draws through here and never touches raw GL.
  *
@@ -69,6 +80,8 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
     private val tTer = terrain.uniform("uTer")
     private val tTerCol = terrain.uniform("uTerCol")
     private val tWorld = terrain.uniform("uWorld")
+    private val tNear = terrain.uniform("uNear")
+    private val tRange = terrain.uniform("uRange")
     private val tCam = terrain.uniform("uCamPos")
     private val tSunDir = terrain.uniform("uSunDir")
     private val tSunCol = terrain.uniform("uSunColor")
@@ -258,12 +271,25 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
 
     // ---- terrain -------------------------------------------------------------------------------
 
+    /** Where the grid [drawTerrain] would draw with these arguments lies, written to [out]. */
+    fun terrainWindow(travelled: Double, cell: Float, cols: Int, rows: Int, rowsBehind: Int, out: TerrainWindow) {
+        val rowIndex = Math.floor(travelled / cell).toLong()
+        val slide = (travelled - rowIndex * cell).toFloat()
+        out.halfWidth = cols * cell / 2f
+        out.zNear = slide + rowsBehind * cell
+        out.zFar = slide + (rowsBehind - rows) * cell
+    }
+
     /**
      * Draws the procedural terrain grid. [travelled] is the distance along the route (the grid is
      * anchored to multiples of [cell] so hills never swim); [cols]/[rows] size the grid and
-     * [rowsBehind] is how many rows lie behind the camera.
+     * [rowsBehind] is how many rows lie behind the camera. A coarse grid can be drawn first and [under] the area of a finer
+     * one drawn afterwards; [fogScale] thickens or thins the fog for this grid and [range] raises the Moon's mountains.
      */
-    fun drawTerrain(travelled: Double, cell: Float, cols: Int, rows: Int, rowsBehind: Int, tint: FloatArray) {
+    fun drawTerrain(
+        travelled: Double, cell: Float, cols: Int, rows: Int, rowsBehind: Int, tint: FloatArray,
+        under: TerrainWindow? = null, fogScale: Float = 1f, range: Float = 1f,
+    ) {
         if (!env.terrainOn) return
         if (current != terrain.id) {
             terrain.use()
@@ -280,8 +306,8 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
             gl.uniform3f(tAmbSky, env.ambSky[0], env.ambSky[1], env.ambSky[2])
             gl.uniform3f(tAmbGround, env.ambGround[0], env.ambGround[1], env.ambGround[2])
             gl.uniform3f(tFogCol, env.fogColor[0], env.fogColor[1], env.fogColor[2])
-            gl.uniform1f(tFogDen, env.fogDensity)
         }
+        gl.uniform1f(tFogDen, env.fogDensity * fogScale)
         val rowIndex = Math.floor(travelled / cell).toLong()
         val slide = (travelled - rowIndex * cell).toFloat()
         gl.uniform4f(tGrid, cell, cols.toFloat(), rowsBehind.toFloat(), (rowIndex - rowsBehind).toFloat())
@@ -289,6 +315,8 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
         gl.uniform4f(tTer, env.groundY, env.terrainAmp, env.corridor, env.terrainStyle)
         gl.uniform4f(tTerCol, tint[0], tint[1], tint[2], 1f)
         gl.uniform1f(tWorld, env.world)
+        if (under != null) gl.uniform4f(tNear, under.halfWidth, under.zFar, under.zNear, under.sink) else gl.uniform4f(tNear, 0f, 0f, 0f, 0f)
+        gl.uniform1f(tRange, range)
         gl.disable(GL.CULL_FACE)
         val grid = terrainGrid(cols, rows)
         gl.bindVertexArray(grid.vao)

@@ -81,10 +81,11 @@ class JourneyTraceTest {
             Capture("finale_c") { it.phase == Phase.FINALE && it.finaleT > 5.6f },
             Capture("finale_d") { it.phase == Phase.FINALE && it.finaleT > 6.9f },
             Capture("victory") { it.phase == Phase.VICTORY && it.phaseTime > 1.5f },
+            Capture("victory_late") { it.phase == Phase.VICTORY && it.phaseTime > 7f },
         )
 
         var time = 0f
-        while (time < 400f && !(game.phase == Phase.VICTORY && game.phaseTime > 2f) && game.phase != Phase.GAME_OVER) {
+        while (time < 400f && !(game.phase == Phase.VICTORY && game.phaseTime > 7.5f) && game.phase != Phase.GAME_OVER) {
             bot.control(input, dt)
             game.update(dt, input)
             scene.rig.update(game, dt)

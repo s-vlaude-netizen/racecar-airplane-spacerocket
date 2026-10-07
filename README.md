@@ -109,6 +109,8 @@ Some of the techniques:
 * **Procedural terrain** – the vertex shader builds the whole ground grid from `gl_VertexID` and noise
   anchored to world coordinates (no vertex buffer, no swimming). The same shader blends land → cloud deck → moon dust;
   a world flag swaps the rolling green hills for terraced red mesas, the clouds for a dust deck and the Moon for Phobos.
+  On the Moon and Phobos two grids of the same function are drawn, a fine one around the vehicle and a coarse one under
+  it that reaches 2 km with mountain ranges standing on it, so the plain runs to the horizon instead of ending in an edge.
 * **Levels as data** – a level (`LevelSpec`) is its world, three legs, destination, difficulty curve and star scores; the
   simulation, spawner, renderer and HUD all read it, so the Moon and Mars share every line of game logic. Mars adds
   only skins (rovers, saucers, hoodoos, a second palette, its own music) and one new mechanic, the rolling boulders.

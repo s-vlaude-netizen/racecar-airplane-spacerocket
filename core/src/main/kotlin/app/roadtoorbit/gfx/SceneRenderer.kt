@@ -115,14 +115,37 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
 
     // ---- terrain ---------------------------------------------------------------------------------
 
+    private val nearWindow = TerrainWindow()
+
     private fun terrain(g: Game) {
         if (!env.terrainOn) return
         if (g.phase == Phase.MENU) return
         if (env.terrainStyle > 1.5f) {
-            renderer.drawTerrain(g.travelled, 4f, 96, 110, 8, env.terrainTint)
+            moonTerrain(g)
         } else {
             renderer.drawTerrain(g.travelled, 10f, 64, 80, 8, env.terrainTint)
         }
+    }
+
+    /**
+     * The Moon (and Phobos): a fine grid around the vehicle and, once the vehicle is low enough, a coarse one under it that
+     * reaches to the horizon with the mountain ranges standing on it, so that the plain has no visible edge.
+     */
+    private fun moonTerrain(g: Game) {
+        val altitude = g.player.y - env.groundY
+        val fade = Mathx.smoothstep(MoonTerrain.RANGE_RISES_BY, MoonTerrain.FAR_FROM_ALTITUDE, altitude) // 1 high up, 0 down on the ground
+        val range = 1f - fade
+        if (altitude < MoonTerrain.FAR_FROM_ALTITUDE) {
+            renderer.terrainWindow(g.travelled, MoonTerrain.NEAR_CELL, MoonTerrain.NEAR_COLS, MoonTerrain.NEAR_ROWS, MoonTerrain.NEAR_BEHIND, nearWindow)
+            renderer.drawTerrain(
+                g.travelled, MoonTerrain.FAR_CELL, MoonTerrain.FAR_COLS, MoonTerrain.FAR_ROWS, MoonTerrain.FAR_BEHIND,
+                env.terrainTint, under = nearWindow, fogScale = 1f + MoonTerrain.FAR_FOG_BOOST * fade, range = range,
+            )
+        }
+        renderer.drawTerrain(
+            g.travelled, MoonTerrain.NEAR_CELL, MoonTerrain.NEAR_COLS, MoonTerrain.NEAR_ROWS, MoonTerrain.NEAR_BEHIND,
+            env.terrainTint, range = range,
+        )
     }
 
     // ---- road ------------------------------------------------------------------------------------

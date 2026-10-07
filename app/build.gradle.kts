@@ -13,8 +13,8 @@ android {
         applicationId = "app.roadtoorbit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.1.0"
+        versionCode = 6
+        versionName = "1.1.1"
     }
 
     // A fixed, openly committed debug-style key so every build (local or CI) is signed identically

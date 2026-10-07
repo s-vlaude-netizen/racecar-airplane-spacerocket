@@ -178,6 +178,8 @@ uniform vec4 uGrid;   // x: cell size, y: columns, z: rows behind the camera, w:
 uniform float uSlide; // shift along +z (0..cell) keeping vertices anchored to the world
 uniform vec4 uTer;    // x: ground y, y: amplitude, z: flat corridor half width, w: style (0 land, 1 cloud/dust deck, 2 moon)
 uniform float uWorld; // 0 Earth, 1 Mars: the land is rolling green hills or terraced red mesas; the moon is the Moon or Phobos
+uniform vec4 uNear;   // a coarse grid drawn under a finer one: x its half width, y its far edge z, z its near edge z, w how far to sink (0 = not under one)
+uniform float uRange; // 0..1: how far the Moon's mountain ranges have risen
 out vec3 vWorld;
 out float vDist;
 
@@ -251,7 +253,14 @@ float moonHeight(vec2 xs) {
     // The landing and the victory drive happen along the route, and the game puts the vehicle at a fixed height as if
     // the ground were flat there, so the strip around the route has no relief at all; hills only start beyond it.
     float relief = smoothstep(${MoonTerrain.FLAT_HALF_WIDTH}, ${MoonTerrain.FULL_RELIEF_AT}, abs(xs.x));
-    return (craters(xs, 22.0) * 1.6 + craters(xs + 130.0, 60.0) * 2.2 + (fbm(xs * 0.05) - 0.5) * 3.0) * relief;
+    float h = (craters(xs, 22.0) * 1.6 + craters(xs + 130.0, 60.0) * 2.2 + (fbm(xs * 0.05) - 0.5) * 3.0) * relief;
+    // far to both sides stand the mountain ranges (the fine grid never reaches them)
+    float range = smoothstep(${MoonTerrain.RANGE_FROM}, ${MoonTerrain.RANGE_FULL}, abs(xs.x)) * uRange;
+    if (range > 0.0) {
+        float ridge = 1.0 - abs(fbm(xs * 0.0026 + 17.0) * 2.0 - 1.0);
+        h += range * (ridge * ridge * ${MoonTerrain.RANGE_HEIGHT} + (fbm(xs * 0.012) - 0.5) * 18.0);
+    }
+    return h;
 }
 float landHeight(vec2 xs) {
     if (uWorld > 0.5) return marsHeight(xs);
@@ -275,6 +284,11 @@ void main() {
     float route = (uGrid.w + gr) * uGrid.x;
     float z = uSlide + (uGrid.z - gr) * uGrid.x;
     vec3 world = vec3(gx, uTer.x + terrainHeight(vec2(gx, route)), z);
+    if (uNear.w > 0.0) {
+        // under a finer grid: sink below its surface, rising to meet it at its border
+        float depthIn = min(uNear.x - abs(world.x), min(world.z - uNear.y, uNear.z - world.z));
+        world.y -= uNear.w * smoothstep(0.0, 72.0, depthIn) + (depthIn > 0.0 ? 0.25 : 0.0);
+    }
     vec4 view = applyBend(uView * vec4(world, 1.0));
     gl_Position = uProj * view;
     vWorld = world;
