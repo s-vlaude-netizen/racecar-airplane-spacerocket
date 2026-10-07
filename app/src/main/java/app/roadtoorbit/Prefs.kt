@@ -2,6 +2,7 @@ package app.roadtoorbit
 
 import android.content.Context
 import app.roadtoorbit.game.Difficulty
+import app.roadtoorbit.game.Levels
 
 /** Tiny SharedPreferences wrapper for the best score and settings. */
 class Prefs(context: Context) {
@@ -12,10 +13,21 @@ class Prefs(context: Context) {
         get() = sp.getInt("difficulty", Difficulty.NORMAL.ordinal).coerceIn(0, Difficulty.values().size - 1)
         set(v) = sp.edit().putInt("difficulty", v).apply()
 
-    /** Best score per difficulty (the pre-difficulty single best counts as Normal). */
-    fun best(d: Difficulty): Int = sp.getInt("best_${d.ordinal}", if (d == Difficulty.NORMAL) sp.getInt("best", 0) else 0)
+    /** Index into [Levels.ALL]: the level chosen on the menu. */
+    var level: Int
+        get() = sp.getInt("level", 0).coerceIn(0, Levels.count - 1)
+        set(v) = sp.edit().putInt("level", v.coerceIn(0, Levels.count - 1)).apply()
 
-    fun setBest(d: Difficulty, score: Int) = sp.edit().putInt("best_${d.ordinal}", score).apply()
+    /**
+     * Best score per level and difficulty. The first level keeps the keys it had before there were levels (and the
+     * single best from before there were difficulties counts as Normal), so nobody loses a score by updating.
+     */
+    fun best(level: Int, d: Difficulty): Int =
+        if (level <= 0) sp.getInt("best_${d.ordinal}", if (d == Difficulty.NORMAL) sp.getInt("best", 0) else 0)
+        else sp.getInt("best_l${level + 1}_${d.ordinal}", 0)
+
+    fun setBest(level: Int, d: Difficulty, score: Int) =
+        sp.edit().putInt(if (level <= 0) "best_${d.ordinal}" else "best_l${level + 1}_${d.ordinal}", score).apply()
 
     var soundOn: Boolean
         get() = sp.getBoolean("sound", true)

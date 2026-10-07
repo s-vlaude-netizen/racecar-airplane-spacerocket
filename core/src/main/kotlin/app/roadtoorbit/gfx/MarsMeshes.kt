@@ -168,9 +168,15 @@ internal object MarsMeshes {
     private fun dome(b: MeshBuilder) {
         b.push().translate(0f, 0.2f, 0f).cylinder(6.6f, 6.8f, 0.4f, 20, rgb(0x8A7E74), rgb(0x6E645C), smooth = false).pop()
         b.push().translate(0f, 0.4f, 0f).sphere(5.2f, 7, 22, rgb(0xF4F4F0), rgb(0xC9CDD4), smooth = true, latFromDeg = 0f, latToDeg = 90f).pop()
-        // ribs
+        // ribs: twelve meridians over the dome, each a chain of thin bars along the arc (a torus would also dip underground)
         for (k in 0 until 6) {
-            b.push().translate(0f, 0.4f, 0f).rotateY(k * 30f).torus(5.22f, 0.07f, 24, 4, rgb(0x9AA2AE)).pop()
+            b.push().translate(0f, 0.4f, 0f).rotateY(k * 30f)
+            for (j in 0 until 9) {
+                val psi = Math.toRadians((10 + j * 20).toDouble()).toFloat() // angle in the rib's plane: 0 = the horizon, 90 = the top
+                b.push().translate(cos(psi) * 5.23f, sin(psi) * 5.23f, 0f).rotateZ(Math.toDegrees(psi.toDouble()).toFloat())
+                    .box(0.12f, 1.9f, 0.12f, rgb(0x9AA2AE)).pop()
+            }
+            b.pop()
         }
         // airlock tunnel with a door
         b.push().translate(0f, 1.4f, 5.9f).box(2.8f, 2.4f, 3.4f, rgb(0xE6E8EC), rgb(0xD2D6DD), rgb(0xB0B6C0), rgb(0x8A909C)).pop()
@@ -202,10 +208,10 @@ internal object MarsMeshes {
         b.push().translate(0.02f, 0.945f, -0.01f).scale(0.62f, 0.075f, 0.58f).icosphere(1f, 1, Col.mul(STRATA[3], 1.05f), 0.22f, 5 + variant, 0.1f).pop()
     }
 
-    /** Flying saucer, 6 m across and about 1.5 m thick, centred on its collision centre. */
+    /** Flying saucer, 6 m across and about 1.6 m thick, centred on its collision centre. */
     private fun saucer(b: MeshBuilder, hull: Int, under: Int, lights: Int) {
         b.push().scale(3.0f, 0.55f, 3.0f).sphere(1f, 6, 22, hull, under, smooth = true).pop()
-        b.push().translate(0f, 0.3f, 0f).scale(1.3f, 1.0f, 1.3f).sphere(1f, 5, 14, rgb(0xBFEFFF), rgb(0x3C86B0), smooth = true, latFromDeg = 0f, latToDeg = 90f).pop()
+        b.push().translate(0f, 0.28f, 0f).scale(1.3f, 0.6f, 1.3f).sphere(1f, 5, 14, rgb(0xBFEFFF), rgb(0x3C86B0), smooth = true, latFromDeg = 0f, latToDeg = 90f).pop()
         b.push().translate(0f, -0.52f, 0f).cylinder(1.1f, 1.5f, 0.35f, 14, Col.mul(under, 1.1f), Col.mul(under, 0.8f), smooth = true).pop()
         // a ring of running lights, which turn with the saucer
         val n = 12

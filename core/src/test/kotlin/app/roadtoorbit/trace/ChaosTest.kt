@@ -6,6 +6,8 @@ import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.GameInput
 import app.roadtoorbit.game.HudBuffer
 import app.roadtoorbit.game.HudState
+import app.roadtoorbit.game.LevelSpec
+import app.roadtoorbit.game.Levels
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.gfx.MeshLibrary
 import app.roadtoorbit.gfx.SceneRenderer
@@ -34,9 +36,9 @@ class ChaosTest {
     /** A good pilot flies whole journeys; every frame of the finale and the victory is rendered and validated too. */
     @Test
     fun everyFrameOfWholeJourneys() {
-        for (seed in 1L..4L) {
-            val (_, seen) = oneRun(seed, 20_000, calm = true)
-            assertTrue(Phase.VICTORY in seen && Phase.FINALE in seen, "seed $seed: the pilot should reach the Moon, saw $seen")
+        for (level in Levels.ALL) for (seed in 1L..4L) {
+            val (_, seen) = oneRun(seed, 20_000, calm = true, level = level)
+            assertTrue(Phase.VICTORY in seen && Phase.FINALE in seen, "${level.name}, seed $seed: the pilot should reach ${level.destination}, saw $seen")
         }
     }
 
@@ -72,7 +74,7 @@ class ChaosTest {
         intArrayOf(1, 1), intArrayOf(0, 0), intArrayOf(0, 500), intArrayOf(500, 0), intArrayOf(4096, 64), intArrayOf(64, 4096),
     )
 
-    private fun oneRun(seed: Long, maxFrames: Int, calm: Boolean = false): Pair<Int, Set<Phase>> {
+    private fun oneRun(seed: Long, maxFrames: Int, calm: Boolean = false, level: LevelSpec? = null): Pair<Int, Set<Phase>> {
         val rnd = Random(seed * 7919 + 13)
         var gl = StrictGles()
         var scene = SceneRenderer(gl, library)
@@ -80,6 +82,7 @@ class ChaosTest {
         val hud = HudBuffer()
         val game = Game(seed)
         game.difficulty = Difficulty.values()[rnd.nextInt(3)]
+        game.level = level ?: Levels[rnd.nextInt(Levels.count)]
         val input = GameInput()
         val style = if (calm) 1 else rnd.nextInt(3) // 0 thumbs, 1 bot with human flaws, 2 nobody steers
         val bot = if (calm) Bot(game) else Bot(
@@ -96,7 +99,10 @@ class ChaosTest {
         for (frame in 0 until maxFrames) {
             // ---- the player and the UI
             when (game.phase) {
-                Phase.MENU -> if (rnd.nextInt(90) == 0) game.startRun(rnd.nextLong())
+                Phase.MENU -> {
+                    if (!calm && rnd.nextInt(60) == 0) game.level = Levels[rnd.nextInt(Levels.count)] // the level pill
+                    if (rnd.nextInt(90) == 0) game.startRun(rnd.nextLong())
+                }
                 Phase.GAME_OVER -> if (rnd.nextInt(120) == 0) {
                     when (if (calm) 2 else rnd.nextInt(3)) {
                         0 -> game.toMenu()
@@ -112,12 +118,15 @@ class ChaosTest {
                 }
                 else -> if (!calm) {
                     // taps that arrive at the wrong time: double taps on PLAY/RETRY, MENU in the middle of a run
+                    val before = game.level
                     when (rnd.nextInt(4000)) {
                         0 -> game.toMenu()
                         1 -> game.startRun(rnd.nextLong())
                         2 -> game.retryLeg()
                         3 -> game.difficulty = game.difficulty.next()
+                        4 -> game.level = Levels[rnd.nextInt(Levels.count)] // a late tap on the level pill: ignored mid-run
                     }
+                    if (game.phase != Phase.MENU) assertEquals(before, game.level, "the level changed in the middle of a run (frame $frame, seed $seed)")
                 }
             }
             if (!calm && pausedFrames == 0 && rnd.nextInt(700) == 0) pausedFrames = 20 + rnd.nextInt(200)
@@ -192,7 +201,8 @@ class ChaosTest {
         val p = game.player
         finite("$where player", p.x, p.y, p.vx, p.vy, p.yaw, p.pitch, p.roll, p.speed, p.bounce, p.boostMeter, p.boostFactor)
         assertTrue(game.score >= 0 && game.coins >= 0 && game.rings >= 0, "$where counters: ${game.score} ${game.coins} ${game.rings}")
-        assertTrue(game.legIndex in 0..2, "$where leg ${game.legIndex}")
+        assertTrue(game.legIndex in 0..game.level.lastLeg, "$where leg ${game.legIndex}")
+        assertTrue(game.level.index in 0 until Levels.count && game.level === Levels[game.level.index], "$where level ${game.level.index}")
         assertTrue(game.entities.size < 1_200, "$where entities ${game.entities.size}")
         assertTrue(game.particles.count <= game.particles.capacity, "$where particles")
         assertTrue(game.popups.size <= 5, "$where popups ${game.popups.size}")

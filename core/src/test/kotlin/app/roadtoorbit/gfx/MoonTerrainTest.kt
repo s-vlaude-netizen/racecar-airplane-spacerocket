@@ -3,6 +3,7 @@ package app.roadtoorbit.gfx
 import app.roadtoorbit.game.Bot
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.GameInput
+import app.roadtoorbit.game.Levels
 import app.roadtoorbit.game.Phase
 import kotlin.math.abs
 import kotlin.test.Test
@@ -24,7 +25,13 @@ class MoonTerrainTest {
 
     @Test
     fun theVehicleAndTheCameraStayInsideTheFlatStripThroughTheFinaleAndTheVictoryDrive() {
+        // the Moon and Phobos share the landing strip
+        for (level in Levels.ALL) theVehicleAndTheCameraStayInsideTheFlatStrip(level)
+    }
+
+    private fun theVehicleAndTheCameraStayInsideTheFlatStrip(level: app.roadtoorbit.game.LevelSpec) {
         val game = Game(7)
+        game.level = level
         val input = GameInput()
         val rig = CameraRig()
         val bot = Bot(game)
@@ -54,14 +61,14 @@ class MoonTerrainTest {
             }
             t += dt
         }
-        assertEquals(Phase.VICTORY, game.phase, "the pilot should reach the Moon")
-        assertTrue(finaleFrames > 300 && victoryFrames > 1_000, "finale $finaleFrames frames, victory $victoryFrames frames")
+        assertEquals(Phase.VICTORY, game.phase, "${level.name}: the pilot should reach ${level.destination}")
+        assertTrue(finaleFrames > 300 && victoryFrames > 1_000, "${level.name}: finale $finaleFrames frames, victory $victoryFrames frames")
 
         val strip = MoonTerrain.FLAT_HALF_WIDTH
-        assertTrue(maxVehicleX < strip - 6f, "the vehicle glides in from |x| = $maxVehicleX; it must stay well inside the $strip m flat strip")
-        assertTrue(maxVehicleXOnTheGround < 1.5f, "on the ground the vehicle follows the route (max |x| = $maxVehicleXOnTheGround)")
-        assertTrue(maxCameraX < strip - 6f, "the camera swings out to |x| = $maxCameraX; it must stay well inside the ${strip} m flat strip")
-        assertTrue(maxTargetX < strip - 6f, "the camera looks at |x| = $maxTargetX")
-        assertTrue(minCameraY > 0.5f, "the camera dips to y = $minCameraY, too close to the ground plane")
+        assertTrue(maxVehicleX < strip - 6f, "${level.name}: the vehicle glides in from |x| = $maxVehicleX; it must stay well inside the $strip m flat strip")
+        assertTrue(maxVehicleXOnTheGround < 1.5f, "${level.name}: on the ground the vehicle follows the route (max |x| = $maxVehicleXOnTheGround)")
+        assertTrue(maxCameraX < strip - 6f, "${level.name}: the camera swings out to |x| = $maxCameraX; it must stay well inside the ${strip} m flat strip")
+        assertTrue(maxTargetX < strip - 6f, "${level.name}: the camera looks at |x| = $maxTargetX")
+        assertTrue(minCameraY > 0.5f, "${level.name}: the camera dips to y = $minCameraY, too close to the ground plane")
     }
 }

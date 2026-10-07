@@ -61,6 +61,9 @@ class HudFuzzTest {
     private fun fill(s: HudState, rnd: Random) {
         s.phase = Phase.values()[rnd.nextInt(Phase.values().size)]
         s.legIndex = rnd.nextInt(3)
+        s.levelIndex = rnd.nextInt(4)
+        s.levelName = strings[rnd.nextInt(strings.size)]
+        s.nextLevelName = strings[rnd.nextInt(strings.size)]
         s.legName = strings[rnd.nextInt(strings.size)]
         s.legSubtitle = strings[rnd.nextInt(strings.size)]
         s.mode = VehicleMode.values()[rnd.nextInt(3)]

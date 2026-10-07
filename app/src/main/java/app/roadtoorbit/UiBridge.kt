@@ -5,7 +5,7 @@ import app.roadtoorbit.game.HudBuffer
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /** Things the UI can ask the game thread to do. */
-enum class UiAction { PLAY, RETRY, MENU, TOGGLE_SOUND, TOGGLE_MUSIC, TOGGLE_TILT, CYCLE_DIFFICULTY }
+enum class UiAction { PLAY, RETRY, MENU, TOGGLE_SOUND, TOGGLE_MUSIC, TOGGLE_TILT, CYCLE_DIFFICULTY, CYCLE_LEVEL, NEXT_LEVEL }
 
 /**
  * Shared state between the UI thread (touch, HUD drawing, sensors) and the GL thread (simulation and

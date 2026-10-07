@@ -12,9 +12,9 @@ import kotlin.math.pow
 class HudState {
     var phase = Phase.MENU
     var levelIndex = 0
-    var levelName = ""
+    var levelName = Levels[0].name
     /** The level after this one, or "" when this is the last. */
-    var nextLevelName = ""
+    var nextLevelName = Levels[1].name
     var legIndex = 0
     var legName = ""
     var legSubtitle = ""

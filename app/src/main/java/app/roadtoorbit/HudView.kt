@@ -76,7 +76,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     private var pressedButton = -1
     private var downX = 0f
     private var downY = 0f
-    private val pills = Array(4) { RectF() }
+    private val pills = Array(5) { RectF() }
 
     // cached formatted numbers (avoid re-allocating strings every frame)
     private var scoreCache = -1
@@ -507,11 +507,17 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
             if (s.bestScore != bestCache) { bestCache = s.bestScore; bestText = String.format(Locale.US, "%,d", s.bestScore) }
             label(c, "BEST  $bestText", cx, py + ph / 2 + 4.6f * u, 3.2f * u, Color.argb(230, 255, 224, 130), Paint.Align.CENTER, sans)
         }
-        // difficulty selector
+        // level and difficulty selectors side by side
+        val lw = 33f * u
         val dw = 30f * u
         val dh = 6.2f * u
         val dy = py + ph / 2 + 11.5f * u
-        rect.set(cx - dw / 2, dy - dh / 2, cx + dw / 2, dy + dh / 2)
+        val pairLeft = cx - (lw + 2.5f * u + dw) / 2
+        rect.set(pairLeft, dy - dh / 2, pairLeft + lw, dy + dh / 2)
+        pills[4].set(rect)
+        val levelColor = if (s.levelIndex == 0) Color.argb(190, 40, 90, 150) else Color.argb(200, 160, 70, 40)
+        drawPillColored(c, rect, "LEVEL ${s.levelIndex + 1}: ${s.levelName}", levelColor, 4)
+        rect.set(pairLeft + lw + 2.5f * u, dy - dh / 2, pairLeft + lw + 2.5f * u + dw, dy + dh / 2)
         pills[3].set(rect)
         val diff = s.difficulty
         val diffColor = when (diff) {
@@ -583,7 +589,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         fill.shader = null
         val cx = w * 0.27f
         label(c, "MISSION COMPLETE", cx, h * 0.17f, 9.4f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)
-        label(c, s.difficulty.label, cx, h * 0.225f, 2.8f * u, Color.argb(220, 200, 215, 255), Paint.Align.CENTER, sans, spacing = 0.2f)
+        label(c, s.levelName + "  ·  " + s.difficulty.label, cx, h * 0.225f, 2.8f * u, Color.argb(220, 200, 215, 255), Paint.Align.CENTER, sans, spacing = 0.2f)
         for (i in 0 until 3) {
             iconStar(c, cx + (i - 1) * 10.5f * u, h * 0.31f, (if (i == 1) 5.4f else 4.4f) * u, i < s.stars)
         }
@@ -594,8 +600,15 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         label(c, "TOTAL  $scoreText", cx, lineY + gap * 3 + 4f * u, 6.4f * u, Color.WHITE, Paint.Align.CENTER, sansItalic)
         if (s.newBest) label(c, "NEW BEST!", cx, lineY + gap * 3 + 10.2f * u, 3.6f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)
         beginButtons()
-        addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", true, h * 0.86f, widthU = 31f, heightU = 8f, xOffsetU = -16.5f, centerX = cx)
-        addButton(BTN_MENU, "MAIN MENU", false, h * 0.86f, widthU = 25f, heightU = 8f, xOffsetU = 14.5f, centerX = cx)
+        if (s.nextLevelName.isNotEmpty()) {
+            // the way on is the main button; playing the level again is the second choice
+            addButton(BTN_NEXT_LEVEL, "NEXT LEVEL: ${s.nextLevelName}", true, h * 0.775f, widthU = 52f, heightU = 8f, centerX = cx)
+            addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", false, h * 0.89f, widthU = 31f, heightU = 7.2f, xOffsetU = -14.5f, centerX = cx)
+            addButton(BTN_MENU, "MAIN MENU", false, h * 0.89f, widthU = 25f, heightU = 7.2f, xOffsetU = 16.5f, centerX = cx)
+        } else {
+            addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", true, h * 0.86f, widthU = 31f, heightU = 8f, xOffsetU = -16.5f, centerX = cx)
+            addButton(BTN_MENU, "MAIN MENU", false, h * 0.86f, widthU = 25f, heightU = 8f, xOffsetU = 14.5f, centerX = cx)
+        }
         drawButtons(c)
     }
 
@@ -888,11 +901,13 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
             index == PILL_HIT + 1 -> bridge.post(UiAction.TOGGLE_MUSIC)
             index == PILL_HIT + 2 -> { bridge.post(UiAction.TOGGLE_TILT); bridge.tiltRecalibrate = true }
             index == PILL_HIT + 3 -> bridge.post(UiAction.CYCLE_DIFFICULTY)
+            index == PILL_HIT + 4 -> bridge.post(UiAction.CYCLE_LEVEL)
             index in 0 until buttonCount -> when (buttons[index].id) {
                 BTN_RESUME -> bridge.paused = false
                 BTN_RESTART -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.PLAY) }
                 BTN_RETRY -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.RETRY) }
                 BTN_PLAY_AGAIN -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.PLAY) }
+                BTN_NEXT_LEVEL -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.NEXT_LEVEL) }
                 BTN_MENU -> bridge.post(UiAction.MENU)
                 BTN_COPY -> copyReport()
                 BTN_CONTINUE -> {
@@ -913,6 +928,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         const val BTN_MENU = 5
         const val BTN_COPY = 6
         const val BTN_CONTINUE = 7
+        const val BTN_NEXT_LEVEL = 8
         const val REPORT_LINES = 15
     }
 }

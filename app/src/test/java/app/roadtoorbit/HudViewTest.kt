@@ -59,6 +59,12 @@ class HudViewTest {
 
     @Test fun menu() = render("menu", UiBridge()) { s -> base(s, Phase.MENU, 0) }
 
+    @Test fun menuOnMars() = render("menu_mars", UiBridge()) { s ->
+        base(s, Phase.MENU, 0)
+        s.levelIndex = 1; s.levelName = "MARS"; s.nextLevelName = ""
+        s.bestScore = 26120
+    }
+
     @Test fun carRun() = render("car_run", UiBridge()) { s ->
         base(s, Phase.RUN, 0)
         s.popupCount = 2
@@ -103,6 +109,14 @@ class HudViewTest {
         s.newBest = true
         s.score = 23455
         s.breakdownBase = 19120; s.breakdownHealth = 1200; s.breakdownTime = 3135
+    }
+
+    @Test fun victoryOnTheLastLevel() = render("victory_last", UiBridge()) { s ->
+        base(s, Phase.VICTORY, 2)
+        s.levelIndex = 1; s.levelName = "MARS"; s.nextLevelName = ""
+        s.stars = 3
+        s.score = 33587
+        s.breakdownBase = 30253; s.breakdownHealth = 1200; s.breakdownTime = 2134
     }
 
     @Test fun errorScreen() = render("error", UiBridge().also { it.fatalError = "Graphics setup failed: demo" }) { s -> base(s, Phase.MENU, 0) }

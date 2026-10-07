@@ -6,6 +6,7 @@ import android.util.Log
 import app.roadtoorbit.audio.AudioEngine
 import app.roadtoorbit.game.Difficulty
 import app.roadtoorbit.game.Game
+import app.roadtoorbit.game.Levels
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.game.Sfx
 import app.roadtoorbit.gfx.MeshLibrary
@@ -26,8 +27,9 @@ class GameRenderer(
     private val applyRenderScale: (Float) -> Unit,
 ) : GLSurfaceView.Renderer {
     val game = Game(System.nanoTime()).also {
+        it.level = Levels[prefs.level]
         it.difficulty = Difficulty.values()[prefs.difficulty]
-        it.bestScore = prefs.best(it.difficulty)
+        it.bestScore = prefs.best(it.level.index, it.difficulty)
     }
 
     private val library = MeshLibrary().also { lib ->
@@ -143,12 +145,12 @@ class GameRenderer(
                 sfx = game.pollSfx()
             }
             if (game.phase == Phase.VICTORY || game.phase == Phase.GAME_OVER) {
-                if (game.bestScore > prefs.best(game.difficulty)) prefs.setBest(game.difficulty, game.bestScore)
+                if (game.bestScore > prefs.best(game.level.index, game.difficulty)) prefs.setBest(game.level.index, game.difficulty, game.bestScore)
             }
         }
         if (game.phase != lastPhase) {
             lastPhase = game.phase
-            CrashReporter.note("phase ${game.phase} leg ${game.legIndex}")
+            CrashReporter.note("phase ${game.phase} level ${game.level.index + 1} leg ${game.legIndex}")
         }
         // states what should be audible right now; idempotent, so calling it every frame (paused or not) is fine
         audio.update(game, bridge.paused)
@@ -176,7 +178,7 @@ class GameRenderer(
     /** The scale to apply as soon as the surface exists (restored from a previous session). */
     val initialScale: Float get() = scale
 
-    private fun handle(a: UiAction) {
+    internal fun handle(a: UiAction) {
         CrashReporter.note("action $a")
         when (a) {
             UiAction.PLAY -> {
@@ -206,10 +208,34 @@ class GameRenderer(
                 audio.play(Sfx.UI)
             }
             UiAction.CYCLE_DIFFICULTY -> {
-                game.difficulty = game.difficulty.next()
-                prefs.difficulty = game.difficulty.ordinal
-                game.bestScore = prefs.best(game.difficulty)
-                audio.play(Sfx.UI)
+                // a tap that arrives late (the run has started) must not change anything, not even the saved choice
+                if (game.phase == Phase.MENU) {
+                    game.difficulty = game.difficulty.next()
+                    prefs.difficulty = game.difficulty.ordinal
+                    game.bestScore = prefs.best(game.level.index, game.difficulty)
+                    audio.play(Sfx.UI)
+                }
+            }
+            UiAction.CYCLE_LEVEL -> {
+                if (game.phase == Phase.MENU) {
+                    game.level = Levels[(game.level.index + 1) % Levels.count]
+                    prefs.level = game.level.index
+                    game.bestScore = prefs.best(game.level.index, game.difficulty)
+                    audio.play(Sfx.UI)
+                }
+            }
+            UiAction.NEXT_LEVEL -> {
+                // after a victory: straight on to the next level, if there is one
+                val next = game.level.index + 1
+                if (game.phase == Phase.VICTORY && next < Levels.count) {
+                    game.toMenu()
+                    game.level = Levels[next]
+                    prefs.level = next
+                    game.bestScore = prefs.best(next, game.difficulty)
+                    game.startRun()
+                    bridge.paused = false
+                    audio.play(Sfx.UI)
+                }
             }
             UiAction.TOGGLE_MUSIC -> {
                 bridge.musicOn = !bridge.musicOn

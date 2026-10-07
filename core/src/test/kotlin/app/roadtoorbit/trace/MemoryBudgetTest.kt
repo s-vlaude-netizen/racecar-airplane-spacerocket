@@ -7,6 +7,8 @@ import app.roadtoorbit.game.Bot
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.GameInput
 import app.roadtoorbit.game.HudBuffer
+import app.roadtoorbit.game.LevelSpec
+import app.roadtoorbit.game.Levels
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.gfx.MeshId
 import app.roadtoorbit.gfx.MeshLibrary
@@ -69,8 +71,10 @@ class MemoryBudgetTest {
         val input = GameInput()
         val dt = 1f / 60f
 
-        // warm everything up (lazy uploads, JIT) with one whole journey, then measure two more
-        fun journey(seed: Long, measure: Boolean): Pair<Long, Long> {
+        // warm everything up (lazy uploads, JIT) with one whole journey of each level, then measure two more of each
+        fun journey(seed: Long, level: LevelSpec, measure: Boolean): Pair<Long, Long> {
+            game.toMenu()
+            game.level = level
             game.startRun(seed)
             val bot = Bot(game)
             var frames = 0L
@@ -91,12 +95,12 @@ class MemoryBudgetTest {
             return frames to bytes
         }
 
-        journey(101, measure = false)
+        for (level in Levels.ALL) journey(101, level, measure = false)
         val afterWarmup = used()
         var frames = 0L
         var bytes = 0L
-        for (seed in 102L..103L) {
-            val (f, b) = journey(seed, measure = true)
+        for (level in Levels.ALL) for (seed in 102L..103L) {
+            val (f, b) = journey(seed, level, measure = true)
             frames += f; bytes += b
         }
         val growth = used() - afterWarmup

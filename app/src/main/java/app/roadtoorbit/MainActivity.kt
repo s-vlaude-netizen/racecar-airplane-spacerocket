@@ -172,6 +172,15 @@ class MainActivity : Activity() {
                 if (e.keyCode == KeyEvent.KEYCODE_SPACE) bridge.input.boost = down
                 return true
             }
+            KeyEvent.KEYCODE_L, KeyEvent.KEYCODE_BUTTON_Y -> {
+                // menu: pick the level; after a victory: on to the next one
+                if (first) when (bridge.hud.latest.phase) {
+                    Phase.MENU -> bridge.post(UiAction.CYCLE_LEVEL)
+                    Phase.VICTORY -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.NEXT_LEVEL) }
+                    else -> Unit
+                }
+                return true
+            }
             KeyEvent.KEYCODE_P, KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_BUTTON_START -> {
                 if (first && isGameplay()) bridge.paused = !bridge.paused
                 return true
