@@ -9,6 +9,18 @@ object MusicPolicy {
     fun wanted(phase: Phase, legIndex: Int, soundOn: Boolean, musicOn: Boolean, world: World = World.EARTH): MusicSynth.Track? {
         if (!soundOn || !musicOn) return null
         val mars = world == World.MARS
+        if (world == World.OCEAN) {
+            return when (phase) {
+                Phase.MENU -> MusicSynth.Track.MENU
+                Phase.COUNTDOWN, Phase.RUN, Phase.CRASHING -> when (legIndex) {
+                    0 -> MusicSynth.Track.OCEAN_PLANE
+                    1 -> MusicSynth.Track.OCEAN_SUB
+                    else -> MusicSynth.Track.OCEAN_CAR
+                }
+                Phase.FINALE, Phase.VICTORY -> MusicSynth.Track.OCEAN_FINALE
+                Phase.GAME_OVER -> null
+            }
+        }
         return when (phase) {
             Phase.MENU -> MusicSynth.Track.MENU
             Phase.COUNTDOWN, Phase.RUN, Phase.CRASHING -> when (legIndex) {

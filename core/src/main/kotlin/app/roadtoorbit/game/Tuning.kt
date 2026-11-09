@@ -19,6 +19,11 @@ class LegSpec(
     /** Multiplier from m/s to the km/h shown on the speedometer (fiction scales with the leg). */
     val displayFactor: Float,
     val maxHealthPenaltyFree: Boolean = true,
+    /** Where the vehicle can go in this leg: |x| <= [maxX] and [minY] <= y <= [maxY] (the car stays on the ground); [startY] is its height when the leg begins. */
+    val maxX: Float = Tuning.maxX(mode),
+    val minY: Float = Tuning.minY(mode),
+    val maxY: Float = Tuning.maxY(mode),
+    val startY: Float = Tuning.startY(mode),
 )
 
 object Tuning {
@@ -57,6 +62,11 @@ object Tuning {
     const val ROCKET_LATERAL_SPEED = 24f
     const val ROCKET_VERTICAL_SPEED = 18f
     const val ROCKET_ACCEL = 80f
+
+    fun maxX(mode: VehicleMode): Float = when (mode) { VehicleMode.CAR -> CAR_MAX_X; VehicleMode.PLANE -> PLANE_MAX_X; VehicleMode.ROCKET -> ROCKET_MAX_X }
+    fun minY(mode: VehicleMode): Float = when (mode) { VehicleMode.CAR -> 0f; VehicleMode.PLANE -> PLANE_MIN_Y; VehicleMode.ROCKET -> ROCKET_MIN_Y }
+    fun maxY(mode: VehicleMode): Float = when (mode) { VehicleMode.CAR -> 0f; VehicleMode.PLANE -> PLANE_MAX_Y; VehicleMode.ROCKET -> ROCKET_MAX_Y }
+    fun startY(mode: VehicleMode): Float = when (mode) { VehicleMode.CAR -> 0f; VehicleMode.PLANE -> PLANE_TAKEOFF_Y; VehicleMode.ROCKET -> 14f }
 
     // ---- transformation
     const val TRANSFORM_SECONDS = 1.9f

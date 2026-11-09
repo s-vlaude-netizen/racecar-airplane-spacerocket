@@ -8,6 +8,7 @@ import android.media.SoundPool
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.game.Sfx
+import app.roadtoorbit.gfx.Skin
 import app.roadtoorbit.gfx.VehicleMode
 import java.io.File
 import kotlin.math.abs
@@ -110,6 +111,7 @@ class AudioEngine(
             Sfx.BOOST_ON -> Triple(SoundId.BOOST, 0.7f, 1f)
             Sfx.TOUCHDOWN -> Triple(SoundId.TOUCHDOWN, 0.9f, 1f)
             Sfx.UI -> Triple(SoundId.UI, 0.6f, 1f)
+            Sfx.SPLASH -> Triple(SoundId.SPLASH, 0.9f, 1f)
         }
         val sample = sampleIds[id.ordinal]
         if (sample != 0) pool.play(sample, volume, volume, 1, 0, rate)
@@ -143,7 +145,7 @@ class AudioEngine(
         val wanted = when (mode) {
             VehicleMode.CAR -> SoundId.ENGINE_CAR
             VehicleMode.PLANE -> SoundId.ENGINE_PLANE
-            VehicleMode.ROCKET -> SoundId.ENGINE_ROCKET
+            VehicleMode.ROCKET -> if (p.visual.skin == Skin.OCEAN) SoundId.ENGINE_SUB else SoundId.ENGINE_ROCKET
         }
         val leg = game.leg
         val frac = if (game.phase == Phase.COUNTDOWN) 0.25f + 0.2f * kotlin.math.sin(game.phaseTime * 9f).coerceAtLeast(0f)

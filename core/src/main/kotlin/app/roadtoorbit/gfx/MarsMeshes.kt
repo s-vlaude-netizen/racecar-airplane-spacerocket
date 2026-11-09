@@ -53,7 +53,7 @@ internal object MarsMeshes {
             MeshId.SAUCER_3 -> saucer(b, rgb(0x8A8F9A), rgb(0x3A3D46), rgb(0xFF5050))
             MeshId.MARS -> mars(b)
             MeshId.PHOBOS -> phobos(b)
-            else -> b.box(1f, 1f, 1f, rgb(0xFF00FF))
+            else -> OceanMeshes.build(id, b)
         }
     }
 

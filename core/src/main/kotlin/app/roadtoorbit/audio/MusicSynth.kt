@@ -16,7 +16,7 @@ object MusicSynth {
     private const val RATE = SoundSynth.SAMPLE_RATE
 
     /** The menu loop and, per level, one for each leg and the finale: the Martian ones are in another key and mood. */
-    enum class Track { MENU, CAR, PLANE, ROCKET, FINALE, MARS_CAR, MARS_PLANE, MARS_ROCKET, MARS_FINALE }
+    enum class Track { MENU, CAR, PLANE, ROCKET, FINALE, MARS_CAR, MARS_PLANE, MARS_ROCKET, MARS_FINALE, OCEAN_PLANE, OCEAN_SUB, OCEAN_CAR, OCEAN_FINALE }
 
     private const val BARS = 8
 
@@ -31,6 +31,10 @@ object MusicSynth {
             Track.MARS_PLANE -> plane(true)
             Track.MARS_ROCKET -> rocket(true)
             Track.MARS_FINALE -> finale(true)
+            Track.OCEAN_PLANE -> plane(false) // placeholders until the ocean loops are composed
+            Track.OCEAN_SUB -> rocket(false)
+            Track.OCEAN_CAR -> car(false)
+            Track.OCEAN_FINALE -> finale(false)
         }
         return m.toPcm()
     }

@@ -4,6 +4,8 @@ package app.roadtoorbit.game
 enum class Sfx {
     COIN, NITRO, REPAIR, HIT, SOFT_HIT, TRANSFORM, TRANSFORM_DONE, RING, RING_MISS, NEAR_MISS,
     EXPLOSION, BEEP, GO, VICTORY, GAME_OVER, ZONE, BOOST_ON, TOUCHDOWN, UI,
+    /** The waterplane dives into the sea. */
+    SPLASH,
 }
 
 /** Floating text shown by the HUD ("NEAR MISS +40", "PERFECT LAUNCH!"). */

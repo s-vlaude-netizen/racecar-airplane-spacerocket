@@ -274,6 +274,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             Kind.DEVIL -> id = MeshId.DEVIL
             Kind.DOME -> id = MeshId.DOME
             Kind.BOULDER -> { id = ASTEROIDS[e.variant % 4]; mat.gloss(0.08f, 10f); mat.tint(0.66f, 0.52f, 0.46f); mat.rim(0.95f, 0.38f, 0.10f, 2.6f) } // dark basalt with a hot rim: not scenery
+            Kind.SHIP, Kind.MINE, Kind.JELLY, Kind.SHARK, Kind.CRAB, Kind.SEASCAPE -> return // the ocean: drawn once its models exist
         }
         // tint multipliers chosen by the spawner (balloons/billboards keep their own colours)
         Mat4.setTrs(m, e.x, ty, e.z, e.rx, e.ry, e.rz, sx, sy, sz)

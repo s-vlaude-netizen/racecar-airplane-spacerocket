@@ -15,6 +15,7 @@ enum class SoundId {
     COIN, NITRO, REPAIR, HIT, SOFT_HIT, TRANSFORM, TRANSFORM_DONE, RING, RING_MISS, NEAR_MISS,
     EXPLOSION, BEEP, GO, VICTORY, GAME_OVER, ZONE, BOOST, TOUCHDOWN, UI,
     ENGINE_CAR, ENGINE_PLANE, ENGINE_ROCKET,
+    SPLASH, ENGINE_SUB,
 }
 
 /**
@@ -25,7 +26,7 @@ enum class SoundId {
 object SoundSynth {
     const val SAMPLE_RATE = 22050
 
-    fun looping(id: SoundId): Boolean = id == SoundId.ENGINE_CAR || id == SoundId.ENGINE_PLANE || id == SoundId.ENGINE_ROCKET
+    fun looping(id: SoundId): Boolean = id == SoundId.ENGINE_CAR || id == SoundId.ENGINE_PLANE || id == SoundId.ENGINE_ROCKET || id == SoundId.ENGINE_SUB
 
     fun render(id: SoundId): ShortArray = toPcm(
         when (id) {
@@ -51,6 +52,8 @@ object SoundSynth {
             SoundId.ENGINE_CAR -> engineCar()
             SoundId.ENGINE_PLANE -> enginePlane()
             SoundId.ENGINE_ROCKET -> engineRocket()
+            SoundId.SPLASH -> touchdown() // placeholder until the splash is synthesised
+            SoundId.ENGINE_SUB -> engineRocket() // placeholder until the submarine's engine is synthesised
         },
     )
 

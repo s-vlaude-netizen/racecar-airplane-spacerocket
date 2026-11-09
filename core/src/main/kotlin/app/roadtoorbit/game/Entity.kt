@@ -20,6 +20,11 @@ enum class Kind(val category: Category) {
 
     // --- Mars: scenery, and the boulders that start rolling across the road as the car approaches
     MESA(Category.DECOR), DEVIL(Category.DECOR), DOME(Category.DECOR), BOULDER(Category.HAZARD),
+
+    // --- the ocean: boats on the sea, mines and sea creatures below it, crabs that cross the seabed road,
+    //     and the islands, reefs, wrecks and ruins (a SEASCAPE's variant picks the model: OceanSpec.SEASCAPE)
+    SHIP(Category.HAZARD), MINE(Category.HAZARD), JELLY(Category.HAZARD), SHARK(Category.HAZARD), CRAB(Category.HAZARD),
+    SEASCAPE(Category.DECOR),
 }
 
 /**

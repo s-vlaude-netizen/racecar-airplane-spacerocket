@@ -15,6 +15,12 @@ import kotlin.math.sqrt
 /** The three forms of the player's vehicle. */
 enum class VehicleMode { CAR, PLANE, ROCKET }
 
+/**
+ * How the vehicle is dressed: the same three forms (car, plane, rocket) in the livery and with the extra parts of the
+ * level's world. [OCEAN] turns them into the seabed car, the waterplane and the submarine-rocket.
+ */
+enum class Skin { STANDARD, OCEAN }
+
 /** Where a part sits, how it is oriented/scaled and how it is tinted in one vehicle form. */
 class Pose(
     val x: Float, val y: Float, val z: Float,
@@ -47,6 +53,7 @@ class PartDef(
 
 /** Parameters describing how the vehicle looks this frame. */
 class VehicleVisual {
+    var skin = Skin.STANDARD
     var from = VehicleMode.CAR
     var to = VehicleMode.CAR
     /** 0..1 progress of the morph from [from] to [to]; irrelevant while from == to. */

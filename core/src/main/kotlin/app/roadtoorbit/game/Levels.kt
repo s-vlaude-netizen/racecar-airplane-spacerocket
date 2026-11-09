@@ -1,9 +1,19 @@
 package app.roadtoorbit.game
 
+import app.roadtoorbit.gfx.Skin
 import app.roadtoorbit.gfx.VehicleMode
 
 /** The world a level is set in: it decides the palettes, the terrain, the scenery and the bodies in the sky. */
-enum class World { EARTH, MARS }
+enum class World { EARTH, MARS, OCEAN }
+
+/** How a level ends once its last leg is done. */
+enum class Finale {
+    /** The rocket glides in, lands on the destination, unfolds into the car and drives off (the Moon, Phobos). */
+    LANDING,
+
+    /** The last leg is a drive already: the car arrives at its destination, pulls up and the camera swings round it. */
+    ARRIVAL,
+}
 
 /**
  * One level: three legs (car, plane, rocket), the world they happen in and where the rocket lands. Everything
@@ -25,12 +35,16 @@ class LevelSpec(
     val parSeconds: Float,
     /** Score needed for one, two and three stars (before the difficulty's score multiplier). */
     val starScores: IntArray,
+    val finale: Finale = Finale.LANDING,
 ) {
     init {
         require(legs.size == 3 && startDifficulty.size == legs.size) { "a level has three legs" }
     }
 
     val lastLeg: Int get() = legs.size - 1
+
+    /** How the player's vehicle is dressed on this level. */
+    val skin: Skin get() = if (world == World.OCEAN) Skin.OCEAN else Skin.STANDARD
 }
 
 object Levels {
