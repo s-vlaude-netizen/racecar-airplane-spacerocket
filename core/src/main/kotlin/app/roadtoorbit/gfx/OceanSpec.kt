@@ -73,6 +73,13 @@ object OceanSpec {
     val SUBHAULER_HALF: FloatArray = floatArrayOf(1.25f, 1.6f, 3.7f)
     val SUBVAN_HALF: FloatArray = floatArrayOf(1.05f, 1.1f, 2.6f)
 
+    /**
+     * The sunken highway (ROAD_SEA): 24 m long, near edge at z = 0, far edge at z = -24, the same footprint, heights and seamless repeat as
+     * the road of the other levels (WorldMeshes.roadSegment). ROAD_SEA_GLOW holds its glowing parts (lane dashes, edge lines, lamp globes) at the
+     * same place and is drawn on top, emissive. The finale's city: ATLANTIS stands on y = 0 with its gate side toward +Z, and ATLANTIS_LIGHTS has
+     * its windows, lamps and beacon rings (same origin, drawn emissive); ATLANTIS_GATE is the arch at the end of the road, standing on y = 0.
+     */
+
     /** The barrier (CONTAINER, half buried in the sand): half extents (1.45, 0.5, 0.5), centred on the box, so it is 2.9 m wide, 1 m high and 1 m deep. */
     val CONTAINER_HALF: FloatArray = floatArrayOf(1.45f, 0.5f, 0.5f)
 
