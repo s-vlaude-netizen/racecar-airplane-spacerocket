@@ -26,7 +26,7 @@ class MoonTerrainTest {
     @Test
     fun theVehicleAndTheCameraStayInsideTheFlatStripThroughTheFinaleAndTheVictoryDrive() {
         // the Moon and Phobos share the landing strip
-        for (level in Levels.ALL) theVehicleAndTheCameraStayInsideTheFlatStrip(level)
+        for (level in Levels.ALL.filter { it.finale == app.roadtoorbit.game.Finale.LANDING }) theVehicleAndTheCameraStayInsideTheFlatStrip(level)
     }
 
     private fun theVehicleAndTheCameraStayInsideTheFlatStrip(level: app.roadtoorbit.game.LevelSpec) {

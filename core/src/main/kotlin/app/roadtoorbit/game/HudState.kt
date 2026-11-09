@@ -21,6 +21,10 @@ class HudState {
     var legLength = 2800f
     var legZoneLength = 320f
     var mode = VehicleMode.CAR
+    var world = World.EARTH
+
+    /** The forms of the level's three legs in order (the stage icons of the journey bar). */
+    val legModes = arrayOf(VehicleMode.CAR, VehicleMode.PLANE, VehicleMode.ROCKET)
     var journey = 0f
     var legProgress = 0f
     var zoneProgress = 0f
@@ -100,6 +104,8 @@ internal fun Game.fillHudInternal(h: HudState) {
     h.legLength = l.length
     h.legZoneLength = l.zoneLength
     h.mode = player.visual.dominant
+    h.world = level.world
+    for (i in h.legModes.indices) h.legModes[i] = level.legs[i].mode
     h.journey = journeyProgress
     h.legProgress = Mathx.clamp01(legDist / l.length)
     h.zoneProgress = zoneProgress
@@ -145,6 +151,13 @@ internal fun Game.fillHudInternal(h: HudState) {
 
 /** Fictional altitude: sea level → 100 km (edge of space) in the sky leg, then on toward the level's destination. */
 internal fun Game.altitudeKm(): Float = when {
+    level.world == World.OCEAN -> when {
+        // the depth of the ocean level: the dive reaches 3 km, the trench road leads on down to the destination
+        phase == Phase.FINALE || phase == Phase.VICTORY -> level.destinationKm
+        legIndex == 0 -> 0f
+        legIndex == 1 -> 3f * Mathx.smoothstep(0f, 1f, Mathx.clamp01(legDist / leg.length))
+        else -> 3f + (level.destinationKm - 3f) * Mathx.clamp01(legDist / leg.length)
+    }
     phase == Phase.FINALE || phase == Phase.VICTORY -> level.destinationKm
     legIndex == 0 -> 0f
     legIndex == 1 -> 100f * Mathx.smoothstep(0f, 1f, Mathx.clamp01(legDist / leg.length))

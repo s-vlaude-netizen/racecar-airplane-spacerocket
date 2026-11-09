@@ -31,8 +31,12 @@ class Environment {
     var terrainAmp = 90f
     var corridor = 9f
     var terrainStyle = 0f // 0 grass, 1 cloud deck, 2 moon
-    /** 0 = Earth, 1 = Mars: picks the terrain's shapes and colours. */
+    /** 0 = Earth, 1 = Mars, 2 = the ocean: picks the terrain's shapes and colours. */
     var world = 0f
+
+    /** A point light carried by the vehicle (its lamps, in the dark water): x, y, z and radius in metres (radius 0 = none), and its colour. */
+    val lamp = floatArrayOf(0f, 0f, 0f, 0f)
+    val lampColor = floatArrayOf(1f, 0.95f, 0.8f)
     val terrainTint = floatArrayOf(1f, 1f, 1f)
 
     fun setSun(x: Float, y: Float, z: Float) {

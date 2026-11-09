@@ -100,8 +100,11 @@ class EnvironmentModel {
     // the menu's backdrop takes on the colour of the chosen level, so picking Mars is visible at once
     private val menuMarsZenith = floatArrayOf(0.13f, 0.05f, 0.10f)
     private val menuMarsHorizon = floatArrayOf(0.62f, 0.31f, 0.22f)
+    private val menuOceanZenith = floatArrayOf(0.02f, 0.10f, 0.22f)
+    private val menuOceanHorizon = floatArrayOf(0.05f, 0.36f, 0.52f)
 
-    fun update(g: Game, e: Environment) {
+    /** [cameraY] is the camera's height (the ocean level needs to know whether the camera is above or below the sea surface). */
+    fun update(g: Game, e: Environment, cameraY: Float = 0f) {
         e.time = g.clock
         val look = g.look
         val a = look.altitude
@@ -110,6 +113,11 @@ class EnvironmentModel {
 
         if (g.phase == Phase.MENU) {
             menu(e, g)
+            return
+        }
+        e.lamp[3] = 0f
+        if (g.level.world == World.OCEAN) {
+            ocean(g, e, cameraY)
             return
         }
 
@@ -183,19 +191,108 @@ class EnvironmentModel {
         }
     }
 
+    // the ocean: the air over the sea, then the water from just under the surface to the trench
+    private val airZenith = floatArrayOf(0.16f, 0.50f, 0.95f)
+    private val airHorizon = floatArrayOf(0.80f, 0.92f, 0.98f)
+    private val airGround = floatArrayOf(0.10f, 0.42f, 0.62f)
+    private val airSun = floatArrayOf(1.0f, 0.95f, 0.84f)
+    private val airAmbSky = floatArrayOf(0.52f, 0.62f, 0.74f)
+    private val airAmbGround = floatArrayOf(0.20f, 0.36f, 0.46f)
+
+    private val shallowZenith = floatArrayOf(0.10f, 0.58f, 0.78f)
+    private val shallowHorizon = floatArrayOf(0.05f, 0.40f, 0.58f)
+    private val shallowGround = floatArrayOf(0.02f, 0.14f, 0.26f)
+    private val shallowSun = floatArrayOf(0.62f, 0.92f, 0.98f)
+    private val shallowAmbSky = floatArrayOf(0.22f, 0.54f, 0.68f)
+    private val shallowAmbGround = floatArrayOf(0.06f, 0.17f, 0.26f)
+
+    private val deepZenith = floatArrayOf(0.03f, 0.16f, 0.32f)
+    private val deepHorizon = floatArrayOf(0.02f, 0.15f, 0.29f)
+    private val deepGround = floatArrayOf(0.0f, 0.03f, 0.08f)
+    private val deepSun = floatArrayOf(0.24f, 0.46f, 0.58f)
+    private val deepAmbSky = floatArrayOf(0.15f, 0.32f, 0.45f)
+    private val deepAmbGround = floatArrayOf(0.05f, 0.11f, 0.17f)
+
+    private val tmpA = FloatArray(3)
+    private val tmpB = FloatArray(3)
+
+    /** Blends air -> (shallow -> deep) water into [out]: [sub] 0 = in the air, 1 = under the surface; [dk] 0 = shallow, 1 = deep. */
+    private fun water(air: FloatArray, shallow: FloatArray, deep: FloatArray, sub: Float, dk: Float, out: FloatArray) {
+        mix3(shallow, deep, dk, tmpA)
+        mix3(air, tmpA, sub, tmpB)
+        out[0] = tmpB[0]; out[1] = tmpB[1]; out[2] = tmpB[2]
+    }
+
+    private fun ocean(g: Game, e: Environment, cameraY: Float) {
+        val look = g.look
+        val finale = g.phase == Phase.FINALE || g.phase == Phase.VICTORY
+        val sub = Mathx.smoothstep(-1.2f, 1.2f, look.surfaceY - cameraY)
+        val dk = Mathx.smoothstep(0f, 1f, look.depth)
+        e.world = 2f
+        water(airZenith, shallowZenith, deepZenith, sub, dk, e.zenith)
+        water(airHorizon, shallowHorizon, deepHorizon, sub, dk, e.horizon)
+        water(airGround, shallowGround, deepGround, sub, dk, e.groundCol)
+        water(airSun, shallowSun, deepSun, sub, dk, e.sunColor)
+        water(airAmbSky, shallowAmbSky, deepAmbSky, sub, dk, e.ambSky)
+        water(airAmbGround, shallowAmbGround, deepAmbGround, sub, dk, e.ambGround)
+        e.fogColor[0] = e.horizon[0]; e.fogColor[1] = e.horizon[1]; e.fogColor[2] = e.horizon[2]
+        e.setSun(Mathx.lerp(-0.45f, -0.25f, sub), Mathx.lerp(0.62f, 0.9f, sub), Mathx.lerp(0.62f, 0.35f, sub))
+        e.starAmount = 0f; e.nebula = 0f; e.sunDisc = 0f
+
+        val s = g.travelled.toFloat()
+        val curve = 0.6f * sin(s / 310f) + 0.4f * sin(s / 173f + 1.7f)
+        val hills = 0.5f * sin(s / 260f + 0.4f) + 0.5f * sin(s / 131f)
+        e.bendStart = 14f
+        e.fogDensity = Mathx.lerp(0.0030f, Mathx.lerp(0.0046f, 0.0056f, dk), sub)
+        when (g.legIndex) {
+            0 -> { e.bendX = 0.00010f * curve; e.bendY = -0.00004f }
+            1 -> { e.bendX = 0.00012f * curve * sub; e.bendY = 0f }
+            else -> { e.bendX = 0.00032f * curve; e.bendY = 0.00014f * hills - 0.00004f }
+        }
+        e.terrainOn = look.terrainOn
+        e.groundY = look.groundY
+        e.terrainStyle = 0f
+        e.terrainAmp = 1.15f
+        e.corridor = 18f
+        val bright = Mathx.lerp(1f, 0.42f, dk)
+        e.terrainTint[0] = bright; e.terrainTint[1] = bright; e.terrainTint[2] = bright * 1.04f
+
+        // the vehicle's lamps matter once it gets dark
+        val dark = sub * Mathx.smoothstep(0.04f, 0.55f, look.depth)
+        e.lamp[0] = g.player.x; e.lamp[1] = g.player.y + 4f; e.lamp[2] = 4f // above and behind the vehicle, like a work light
+        e.lamp[3] = if (dark > 0.02f) 95f else 0f
+        val lampPower = 0.55f * dark
+        e.lampColor[0] = 1.0f * lampPower; e.lampColor[1] = 0.96f * lampPower; e.lampColor[2] = 0.82f * lampPower
+
+        if (finale) {
+            // the lost city lights the water around it
+            e.fogDensity = 0.0034f
+            e.fogColor[0] = 0.04f; e.fogColor[1] = 0.24f; e.fogColor[2] = 0.34f
+            e.horizon[0] = 0.04f; e.horizon[1] = 0.24f; e.horizon[2] = 0.34f
+            e.ambSky[0] = 0.20f; e.ambSky[1] = 0.40f; e.ambSky[2] = 0.50f
+            e.ambGround[0] = 0.07f; e.ambGround[1] = 0.15f; e.ambGround[2] = 0.21f
+            e.sunColor[0] = 0.32f; e.sunColor[1] = 0.58f; e.sunColor[2] = 0.68f
+            e.bendX = 0f; e.bendY = 0f
+            e.lamp[3] = 120f
+            e.lampColor[0] = 0.42f; e.lampColor[1] = 0.46f; e.lampColor[2] = 0.42f
+        }
+    }
+
     private fun menu(e: Environment, g: Game) {
         val mars = g.level.world == World.MARS
-        copy(if (mars) menuMarsZenith else menuZenith, e.zenith)
-        copy(if (mars) menuMarsHorizon else menuHorizon, e.horizon)
-        copy(if (mars) menuMarsHorizon else menuHorizon, e.fogColor)
+        val ocean = g.level.world == World.OCEAN
+        copy(if (ocean) menuOceanZenith else if (mars) menuMarsZenith else menuZenith, e.zenith)
+        copy(if (ocean) menuOceanHorizon else if (mars) menuMarsHorizon else menuHorizon, e.horizon)
+        copy(if (ocean) menuOceanHorizon else if (mars) menuMarsHorizon else menuHorizon, e.fogColor)
+        e.lamp[3] = 0f
         e.groundCol[0] = 0.20f; e.groundCol[1] = 0.12f; e.groundCol[2] = 0.28f
         e.setSun(-0.5f, 0.55f, 0.65f)
         e.sunColor[0] = 1.0f; e.sunColor[1] = 0.93f; e.sunColor[2] = 0.88f
         e.ambSky[0] = 0.42f; e.ambSky[1] = 0.40f; e.ambSky[2] = 0.58f
         e.ambGround[0] = 0.20f; e.ambGround[1] = 0.16f; e.ambGround[2] = 0.28f
         e.fogDensity = 0.0009f
-        e.starAmount = 0.75f
-        e.nebula = 0.55f
+        e.starAmount = if (ocean) 0f else 0.75f
+        e.nebula = if (ocean) 0f else 0.55f
         e.sunDisc = 0f
         e.bendX = 0f; e.bendY = 0f; e.bendStart = 14f
         e.terrainOn = false

@@ -74,8 +74,8 @@ class Bot(
         val phx = ext[0]; val phy = ext[1]; val phz = ext[2]
         val (maxX, minY, maxY, latSpeed, vertSpeed, accel) = when (mode) {
             VehicleMode.CAR -> Dyn(Tuning.CAR_MAX_X, 0f, 0f, Tuning.CAR_LATERAL_SPEED, 0f, Tuning.CAR_LATERAL_ACCEL)
-            VehicleMode.PLANE -> Dyn(Tuning.PLANE_MAX_X, Tuning.PLANE_MIN_Y, Tuning.PLANE_MAX_Y, Tuning.PLANE_LATERAL_SPEED, Tuning.PLANE_VERTICAL_SPEED, Tuning.PLANE_ACCEL)
-            VehicleMode.ROCKET -> Dyn(Tuning.ROCKET_MAX_X, Tuning.ROCKET_MIN_Y, Tuning.ROCKET_MAX_Y, Tuning.ROCKET_LATERAL_SPEED, Tuning.ROCKET_VERTICAL_SPEED, Tuning.ROCKET_ACCEL)
+            VehicleMode.PLANE -> Dyn(leg.maxX, leg.minY, game.flightCeiling(leg), Tuning.PLANE_LATERAL_SPEED, Tuning.PLANE_VERTICAL_SPEED, Tuning.PLANE_ACCEL)
+            VehicleMode.ROCKET -> Dyn(leg.maxX, leg.minY, game.flightCeiling(leg), Tuning.ROCKET_LATERAL_SPEED, Tuning.ROCKET_VERTICAL_SPEED, Tuning.ROCKET_ACCEL)
         }
 
         val cands = ArrayList<Candidate>()

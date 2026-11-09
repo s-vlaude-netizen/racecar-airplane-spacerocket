@@ -80,7 +80,29 @@ object Levels {
         starScores = intArrayOf(10000, 16500, 23000),
     )
 
-    val ALL: Array<LevelSpec> = arrayOf(MOON, MARS)
+    /**
+     * The ocean: a waterplane skims the sea (it can fly almost down to the waves), dives and becomes a submarine-rocket, which
+     * lands on the seabed as the car that drives along the sunken highway to Atlantis. The vehicle changes in the order
+     * plane, rocket, car, and the last leg is a drive, so the finale is an arrival and not a landing.
+     */
+    private val DEEP = LevelSpec(
+        index = 2,
+        world = World.OCEAN,
+        name = "THE DEEP",
+        legs = arrayOf(
+            LegSpec(0, VehicleMode.PLANE, "WAVE RUNNER", "Skim the open sea", 3600f, 360f, 56f, 80f, 0.40f, 520f, 120f, 3.6f * 2f, minY = 1.2f, startY = 1.8f),
+            LegSpec(1, VehicleMode.ROCKET, "DEEP DIVE", "Plunge into the abyss", 4000f, 440f, 48f, 76f, 0.45f, 440f, 110f, 3.6f * 4f),
+            LegSpec(2, VehicleMode.CAR, "TRENCH RUN", "Drive to Atlantis", 3400f, 0f, 40f, 58f, 0.45f, 400f, 150f, 3.6f),
+        ),
+        destination = "ATLANTIS",
+        destinationKm = 10.9f,
+        startDifficulty = floatArrayOf(0.20f, 0.34f, 0.46f),
+        parSeconds = 350f,
+        starScores = intArrayOf(11500, 18500, 25500),
+        finale = Finale.ARRIVAL,
+    )
+
+    val ALL: Array<LevelSpec> = arrayOf(MOON, MARS, DEEP)
 
     val count: Int get() = ALL.size
 

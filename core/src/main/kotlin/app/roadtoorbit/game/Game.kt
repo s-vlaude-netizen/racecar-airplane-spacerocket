@@ -111,6 +111,7 @@ class Game(seed: Long = 1L) {
         set(value) {
             if (phase != Phase.MENU) return
             field = value
+            player.visual.skin = value.skin
         }
 
     var newBest = false
@@ -142,6 +143,7 @@ class Game(seed: Long = 1L) {
     private val pool = ArrayList<Entity>(256)
     private val sfxQueue = ArrayDeque<Sfx>()
     private var perfectLaunch = false
+    private var xfStartY = 0f
 
     val leg: LegSpec get() = level.legs[legIndex]
     val journeyProgress: Float
@@ -205,6 +207,7 @@ class Game(seed: Long = 1L) {
         popups.clear()
         xf.active = false
         player.reset(VehicleMode.CAR, 0f, 0f, maxHealth)
+        player.visual.skin = level.skin
         player.visual.flame = 0f
     }
 
@@ -213,12 +216,8 @@ class Game(seed: Long = 1L) {
         legDist = 0f
         val l = level.legs[index]
         clearWorld()
-        val startY = when (l.mode) {
-            VehicleMode.CAR -> 0f
-            VehicleMode.PLANE -> Tuning.PLANE_TAKEOFF_Y
-            VehicleMode.ROCKET -> 14f
-        }
-        player.reset(l.mode, startY, if (index == 0) 0f else l.speedStart * difficulty.speedScale, maxHealth)
+        player.reset(l.mode, l.startY, if (index == 0) 0f else l.speedStart * difficulty.speedScale, maxHealth)
+        player.visual.skin = level.skin
         xf.active = false
         spawnCursor = l.firstPatternAt
         decorCursor = -40f
@@ -282,15 +281,15 @@ class Game(seed: Long = 1L) {
     private fun updateMenu(dt: Float) {
         menuTime += dt
         val v = player.visual
-        // cycle car -> plane -> rocket -> car, holding each form for a moment
+        // cycle through the level's forms in the order of its legs (car -> plane -> rocket -> car), holding each for a moment
         val hold = 2.2f
         val morphTime = 1.6f
         val step = hold + morphTime
         val cycle = menuTime % (step * 3f)
         val idx = (cycle / step).toInt().coerceIn(0, 2)
         val local = cycle - idx * step
-        val from = VehicleMode.values()[idx]
-        val to = VehicleMode.values()[(idx + 1) % 3]
+        val from = level.legs[idx].mode
+        val to = level.legs[(idx + 1) % 3].mode
         if (local < hold) {
             v.settle(from)
         } else {
@@ -357,6 +356,7 @@ class Game(seed: Long = 1L) {
         }
 
         look.update(this)
+        checkSplash()
         updateEntities(dt)
         spawner.update()
         if (player.alive && !xf.active) collide(dt)
@@ -388,9 +388,9 @@ class Game(seed: Long = 1L) {
         val v = p.visual
         v.time = clock
         when (l.mode) {
-            VehicleMode.CAR -> stepCar(dt, input)
-            VehicleMode.PLANE -> stepFlyer(dt, input, Tuning.PLANE_MAX_X, Tuning.PLANE_MIN_Y, Tuning.PLANE_MAX_Y, Tuning.PLANE_LATERAL_SPEED, Tuning.PLANE_VERTICAL_SPEED, Tuning.PLANE_ACCEL, 42f, 17f)
-            VehicleMode.ROCKET -> stepFlyer(dt, input, Tuning.ROCKET_MAX_X, Tuning.ROCKET_MIN_Y, Tuning.ROCKET_MAX_Y, Tuning.ROCKET_LATERAL_SPEED, Tuning.ROCKET_VERTICAL_SPEED, Tuning.ROCKET_ACCEL, 24f, 12f)
+            VehicleMode.CAR -> if (xf.active && xf.from != VehicleMode.CAR) stepLanding(dt) else stepCar(dt, input)
+            VehicleMode.PLANE -> stepFlyer(dt, input, l.maxX, l.minY, flightCeiling(l), Tuning.PLANE_LATERAL_SPEED, Tuning.PLANE_VERTICAL_SPEED, Tuning.PLANE_ACCEL, 42f, 17f)
+            VehicleMode.ROCKET -> stepFlyer(dt, input, l.maxX, l.minY, flightCeiling(l), Tuning.ROCKET_LATERAL_SPEED, Tuning.ROCKET_VERTICAL_SPEED, Tuning.ROCKET_ACCEL, 24f, 12f)
         }
 
         // transformation overrides: take-off arc and nose-up swoop
@@ -401,6 +401,13 @@ class Game(seed: Long = 1L) {
                 p.y = Tuning.PLANE_TAKEOFF_Y * Mathx.easeOutCubic(min(1f, e * 1.25f))
                 p.vy = 0f
                 p.pitch += 20f * sin(PI.toFloat() * Mathx.clamp01(e * 1.4f))
+            } else if (xf.to == VehicleMode.CAR) {
+                p.pitch -= 14f * sin(PI.toFloat() * e) // the nose dips as the vehicle settles onto its wheels
+            } else if (level.world == World.OCEAN && xf.from == VehicleMode.PLANE) {
+                // the dive: the nose goes down and the vehicle sinks to the depth the submarine starts its leg at
+                p.y = Mathx.lerp(xfStartY, DIVE_Y, Mathx.smoothstep(0f, 0.75f, e))
+                p.vy = 0f
+                p.pitch -= 34f * sin(PI.toFloat() * Mathx.clamp01(e * 1.15f))
             } else {
                 p.pitch += 24f * sin(PI.toFloat() * e)
             }
@@ -449,6 +456,27 @@ class Game(seed: Long = 1L) {
         p.visual.steerDeg = -frac * 24f
     }
 
+    /** The highest the vehicle may fly in [l]: its own limit, and below the sea surface when it is under water. */
+    internal fun flightCeiling(l: LegSpec): Float =
+        if (level.world == World.OCEAN && l.mode == VehicleMode.ROCKET) min(l.maxY, max(l.minY + 2f, look.surfaceY - 7f)) else l.maxY
+
+    /** Settling onto the ground after a flight, while the vehicle turns into a car (the submarine landing on the seabed): the lane limits and the suspension only apply once it is a car. */
+    private fun stepLanding(dt: Float) {
+        val p = player
+        val e = Mathx.clamp01(xf.t)
+        p.y = Mathx.lerp(xfStartY, 0f, Mathx.smoothstep(0.05f, 0.92f, e))
+        p.vy = 0f
+        p.x = Mathx.damp(p.x, Mathx.clamp(p.x, -LAND_X, LAND_X), 5f, dt)
+        p.vx = Mathx.damp(p.vx, 0f, 5f, dt)
+        p.roll = Mathx.damp(p.roll, 0f, 5f, dt)
+        p.yaw = Mathx.damp(p.yaw, 0f, 5f, dt)
+        p.pitch = Mathx.damp(p.pitch, 0f, 5f, dt)
+        p.bounce = 0f; p.bounceV = 0f
+        wheelSpin += p.speed / 0.36f * (180f / PI.toFloat()) * dt * Mathx.smoothstep(0.6f, 1f, e)
+        wheelSpin %= 3600f
+        p.visual.steerDeg = 0f
+    }
+
     private fun stepFlyer(
         dt: Float, input: GameInput,
         maxX: Float, minY: Float, maxY: Float,
@@ -483,7 +511,7 @@ class Game(seed: Long = 1L) {
                 // a boulder that waited at the roadside starts to roll
                 e.vx = e.armVx
                 e.armVx = 0f
-                e.spinZ = -e.vx / max(e.radius, 0.5f) * (180f / PI.toFloat())
+                if (e.kind == Kind.BOULDER) e.spinZ = -e.vx / max(e.radius, 0.5f) * (180f / PI.toFloat())
             }
             e.z += (speed * e.parallax - e.speed) * dt
             e.x += e.vx * dt
@@ -517,7 +545,7 @@ class Game(seed: Long = 1L) {
         }
     }
 
-    internal fun entityY(e: Entity): Float = if (e.groundBound) e.y + look.groundY else e.y
+    internal fun entityY(e: Entity): Float = if (e.groundBound) e.y + (if (e.onSurface) look.surfaceY else look.groundY) else e.y
 
     private fun collide(dt: Float) {
         val p = player
@@ -730,8 +758,10 @@ class Game(seed: Long = 1L) {
         perfectLaunch = manual && remaining <= Tuning.PERFECT_WINDOW
         val bonus = scaled(if (perfectLaunch) Tuning.PERFECT_TRANSFORM_SCORE else Tuning.TRANSFORM_SCORE)
         score += bonus
-        popup(if (perfectLaunch) "PERFECT LAUNCH! +$bonus" else "TRANSFORM! +$bonus", if (perfectLaunch) COLOR_GOLD else COLOR_ACCENT, 1.8f, true)
+        val perfect = if (level.world != World.OCEAN) "PERFECT LAUNCH" else if (next.mode == VehicleMode.CAR) "PERFECT LANDING" else "PERFECT DIVE"
+        popup(if (perfectLaunch) "$perfect! +$bonus" else "TRANSFORM! +$bonus", if (perfectLaunch) COLOR_GOLD else COLOR_ACCENT, 1.8f, true)
 
+        xfStartY = player.y
         xf.active = true
         xf.t = 0f
         xf.from = from.mode
@@ -757,6 +787,21 @@ class Game(seed: Long = 1L) {
         flash = 0.9f
         sfx(Sfx.TRANSFORM)
         transformBurst()
+        splashed = false
+    }
+
+    private var splashed = true
+
+    /** The dive: when the sea surface comes up over the vehicle, a great splash. */
+    private fun checkSplash() {
+        if (splashed || !xf.active || level.world != World.OCEAN || xf.from != VehicleMode.PLANE) return
+        if (look.surfaceY > player.y + 0.4f) {
+            splashed = true
+            sfx(Sfx.SPLASH)
+            shake = max(shake, 0.5f)
+            particles.burst(player.x, look.surfaceY + 0.3f, -1f, 70, 14f, 1.4f, 1.0f, Col.rgba(0xFFFFFF, 0.9f), Col.rgba(0x9ED8FF, 0f), false, -6f, 1.1f)
+            particles.burst(player.x, look.surfaceY, 0f, 26, 6f, 1.6f, 0.7f, Col.rgba(0xFFFFFF, 0.6f), Col.rgba(0xBFEFFF, 0f), false, 1.5f, 1.0f)
+        }
     }
 
     private fun finishTransform() {
@@ -768,6 +813,12 @@ class Game(seed: Long = 1L) {
         shake = max(shake, 0.4f)
         sfx(Sfx.TRANSFORM_DONE)
         transformBurst()
+        if (xf.to == VehicleMode.CAR) {
+            // touch-down on the seabed: a cloud of silt
+            sfx(Sfx.TOUCHDOWN)
+            shake = max(shake, 0.6f)
+            particles.burst(player.x, 0.3f, -1f, 46, 12f, 1.6f, 1.6f, Col.rgba(0x6F8A94, 0.8f), Col.rgba(0x35525E, 0f), false, 1.5f, 1.2f)
+        }
         popup(leg.name, COLOR_WHITE, 2.2f, true)
     }
 
@@ -797,7 +848,7 @@ class Game(seed: Long = 1L) {
         player.boostFactor = 0f
         player.boosting = false
         removeWhere { it.kind.category == Category.HAZARD || it.kind.category == Category.PICKUP || it.kind == Kind.PLANET }
-        finaleGroundY = -330f
+        finaleGroundY = if (level.finale == Finale.ARRIVAL) 0f else -330f
         flash = 0.6f
         popup("APPROACHING ${level.destination}", COLOR_WHITE, 2.6f, true)
     }
@@ -808,6 +859,10 @@ class Game(seed: Long = 1L) {
     private var touchedDown = false
 
     private fun updateFinale(dt: Float) {
+        if (level.finale == Finale.ARRIVAL) {
+            updateArrival(dt)
+            return
+        }
         finaleT += dt
         val t = finaleT
         val p = player
@@ -878,6 +933,32 @@ class Game(seed: Long = 1L) {
         if (t >= 7.4f) completeRun()
     }
 
+    /** The last leg was a drive: the car rolls on through the destination's gate, slows to a stop and the camera swings round it. */
+    private fun updateArrival(dt: Float) {
+        finaleT += dt
+        val t = finaleT
+        val p = player
+        val v = p.visual
+        v.time = clock
+        v.steerDeg = 0f
+        p.speed = Mathx.lerp(finaleStartSpeed, 0f, Mathx.smoother(t / 4.8f))
+        p.x = Mathx.damp(p.x, 0f, 2f, dt)
+        p.y = 0f
+        p.roll = Mathx.damp(p.roll, 0f, 3f, dt)
+        p.pitch = Mathx.damp(p.pitch, 0f, 3f, dt)
+        p.yaw = 0f
+        p.vx = 0f
+        v.flame = 0f
+        wheelSpin += p.speed / 0.36f * (180f / PI.toFloat()) * dt
+        wheelSpin %= 3600f
+        v.wheelSpinDeg = wheelSpin
+        legDist += p.speed * dt
+        travelled += p.speed * dt
+        updateEntities(dt)
+        particlesUpdate(dt, p.speed)
+        if (t >= 7.4f) completeRun()
+    }
+
     private fun completeRun() {
         phase = Phase.VICTORY
         phaseTime = 0f
@@ -897,11 +978,13 @@ class Game(seed: Long = 1L) {
         val p = player
         val v = p.visual
         v.time = clock
-        p.speed = Mathx.damp(p.speed, 12f, 1.5f, dt)
+        // the moon's car drives off; a car that has arrived at its destination stays parked
+        p.speed = if (level.finale == Finale.ARRIVAL) Mathx.damp(p.speed, 0f, 4f, dt) else Mathx.damp(p.speed, 12f, 1.5f, dt)
         wheelSpin += p.speed / 0.36f * (180f / PI.toFloat()) * dt
         wheelSpin %= 3600f
         v.wheelSpinDeg = wheelSpin
         travelled += p.speed * dt
+        if (level.finale == Finale.ARRIVAL) legDist += p.speed * dt
         updateEntities(dt)
         particlesUpdate(dt, p.speed)
     }
@@ -948,8 +1031,13 @@ class Game(seed: Long = 1L) {
             VehicleMode.ROCKET -> 4.3f
         }
         val y0 = p.y + 0.62f
-        // exhaust sparks / smoke
-        val rate = when (dom) {
+        val ocean = level.world == World.OCEAN
+        // exhaust sparks / smoke (in the ocean level: bubbles, and the spray of the floats)
+        val rate = if (ocean) when (dom) {
+            VehicleMode.CAR -> if (p.boostFactor > 0.3f) 46f else 5f
+            VehicleMode.PLANE -> 0f
+            VehicleMode.ROCKET -> 46f + 56f * p.boostFactor
+        } else when (dom) {
             VehicleMode.CAR -> if (p.boostFactor > 0.3f) 60f else 0f
             VehicleMode.PLANE -> 40f + 50f * p.boostFactor
             VehicleMode.ROCKET -> 70f + 60f * p.boostFactor
@@ -957,6 +1045,17 @@ class Game(seed: Long = 1L) {
         sparkAcc += rate * dt
         while (sparkAcc >= 1f) {
             sparkAcc -= 1f
+            if (ocean) {
+                // bubbles rise out of the exhaust and drift back past the vehicle
+                val spread = if (dom == VehicleMode.ROCKET) 0.45f else 0.25f
+                particles.emit(
+                    p.x + rng.range(-spread, spread), y0 + rng.range(-spread, spread), exhaustZ + 0.3f,
+                    rng.range(-0.8f, 0.8f), rng.range(-0.2f, 0.9f), rng.range(2f, 6f),
+                    rng.range(0.7f, 1.5f), rng.range(0.08f, 0.2f), rng.range(0.18f, 0.36f),
+                    Col.rgba(0xDFF7FF, 0.5f), Col.rgba(0xBFEFFF, 0f), false, 3.5f, 0.6f, true,
+                )
+                continue
+            }
             val spread = if (dom == VehicleMode.ROCKET) 0.45f else 0.22f
             val life = if (dom == VehicleMode.CAR) rng.range(0.25f, 0.5f) else rng.range(0.07f, 0.16f)
             particles.emit(
@@ -966,6 +1065,8 @@ class Game(seed: Long = 1L) {
                 Col.rgb(0xFFC060), Col.rgba(0xFF3000, 0f), true, 0f, 0.8f, true,
             )
         }
+        if (ocean && leg.mode == VehicleMode.PLANE && dom == VehicleMode.PLANE) wakeSpray(dt)
+        if (ocean && leg.mode == VehicleMode.CAR && dom == VehicleMode.CAR && p.speed > 3f) siltPuffs(dt)
         // speed dust streaming toward the camera
         val dustRate = when (leg.mode) {
             VehicleMode.CAR -> 18f
@@ -984,10 +1085,56 @@ class Game(seed: Long = 1L) {
             val c = if (level.world == World.MARS) {
                 // the thin air of Mars carries red dust, not white spray
                 if (leg.mode == VehicleMode.CAR) Col.rgba(0xE0A070, 0.45f) else Col.rgba(0xFFD2A0, 0.6f)
+            } else if (ocean) {
+                // sea mist over the waves; marine snow in the dark water
+                when (leg.mode) {
+                    VehicleMode.PLANE -> Col.rgba(0xFFFFFF, 0.4f)
+                    VehicleMode.ROCKET -> Col.rgba(0xBFE9F5, 0.55f)
+                    VehicleMode.CAR -> Col.rgba(0x9FC4D2, 0.45f)
+                }
             } else if (leg.mode == VehicleMode.CAR) Col.rgba(0xFFFFFF, 0.35f) else Col.rgba(0xCFE8FF, 0.7f)
             particles.emit(sideX, dy, spawnZ, 0f, 0f, 0f, 1.6f, 0.16f, 0.12f, c, Col.withAlpha(c, 0f), true, 0f, 0f, true)
         }
         particlesUpdate(dt, p.speed)
+    }
+
+    private var sprayAcc = 0f
+
+    /** The waterplane's floats throw spray when it flies low over the waves. */
+    private fun wakeSpray(dt: Float) {
+        val p = player
+        val l = leg
+        val low = Mathx.clamp01(1f - (p.y - l.minY) / 3.2f)
+        if (low <= 0f || p.speed < 8f) return
+        sprayAcc += (30f + 90f * low) * (p.speed / l.speedEnd) * dt
+        while (sprayAcc >= 1f) {
+            sprayAcc -= 1f
+            val side = if (rng.chance(0.5f)) -1f else 1f
+            particles.emit(
+                p.x + side * rng.range(0.7f, 1.1f), look.surfaceY + 0.15f, rng.range(0.6f, 2.8f),
+                side * rng.range(0.4f, 2.6f), rng.range(2.5f, 6.5f) * (0.5f + low), rng.range(0.5f, 3f),
+                rng.range(0.45f, 0.85f), rng.range(0.25f, 0.45f), rng.range(0.7f, 1.3f),
+                Col.rgba(0xFFFFFF, 0.75f), Col.rgba(0xCFEFFF, 0f), false, -9f, 0.5f, true,
+            )
+        }
+    }
+
+    private var siltAcc = 0f
+
+    /** The car's tyres stir up silt on the seabed. */
+    private fun siltPuffs(dt: Float) {
+        val p = player
+        siltAcc += 16f * (p.speed / leg.speedEnd) * dt
+        while (siltAcc >= 1f) {
+            siltAcc -= 1f
+            val side = if (rng.chance(0.5f)) -1f else 1f
+            particles.emit(
+                p.x + side * rng.range(0.7f, 1.2f), 0.25f, 1.5f + rng.range(0f, 1.2f),
+                side * rng.range(0.2f, 1.2f), rng.range(0.4f, 1.4f), rng.range(0.5f, 2f),
+                rng.range(0.9f, 1.6f), rng.range(0.3f, 0.5f), rng.range(0.9f, 1.5f),
+                Col.rgba(0x7E98A3, 0.4f), Col.rgba(0x4A6672, 0f), false, 0.4f, 0.8f, true,
+            )
+        }
     }
 
     private fun railSparks(side: Float) {
@@ -1012,6 +1159,10 @@ class Game(seed: Long = 1L) {
     companion object {
         const val CLEANUP_Z = 30f
         const val LAND_Y = 0.68f
+
+        /** Where the submarine's dive takes it (y) and how far from the middle the car may be when it lands on the seabed. */
+        const val DIVE_Y = 9f
+        const val LAND_X = Tuning.CAR_MAX_X - 0.4f
         const val NEAR_MISS_GAP = 1.25f
 
         val COLOR_GOOD = Col.rgb(0x7DFF9A)

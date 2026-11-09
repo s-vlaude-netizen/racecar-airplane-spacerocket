@@ -17,13 +17,14 @@ import kotlin.math.sqrt
  * `S + dz` sits at world z = -(S + dz - legDist).
  */
 internal class Spawner(private val g: Game) {
-    private val rng get() = g.rng
+    internal val rng get() = g.rng
+    private val sea = OceanSpawner(this, g)
 
     /**
      * Pattern geometry is authored for the car's ~48 m/s. Faster legs stretch distances along z by
      * this factor so obstacle spacing stays constant in *seconds* (the play area itself does not scale).
      */
-    private val zs: Float
+    internal val zs: Float
         get() {
             val l = g.leg
             return (l.speedStart + l.speedEnd) * 0.5f * g.difficulty.speedScale / 48f
@@ -38,6 +39,7 @@ internal class Spawner(private val g: Game) {
     }
 
     private val mars: Boolean get() = g.level.world == World.MARS
+    private val ocean: Boolean get() = g.level.world == World.OCEAN
 
     fun update() {
         val leg = g.leg
@@ -45,7 +47,7 @@ internal class Spawner(private val g: Game) {
 
         while (g.spawnCursor - g.legDist < leg.spawnAhead && g.spawnCursor < leg.length - 15f) {
             val s = g.spawnCursor
-            val used = when (leg.index) {
+            val used = if (ocean) sea.pattern(leg, s, diff(leg.index, s, hazardEnd), s < hazardEnd) else when (leg.index) {
                 0 -> carPattern(s, diff(0, s, hazardEnd), s < hazardEnd)
                 1 -> planePattern(s, diff(1, s, hazardEnd), s < hazardEnd)
                 else -> rocketPattern(s, diff(2, s, hazardEnd), s < hazardEnd)
@@ -60,7 +62,7 @@ internal class Spawner(private val g: Game) {
 
         while (g.decorCursor - g.legDist < leg.spawnAhead + 80f) {
             val s = g.decorCursor
-            g.decorCursor += when (leg.index) {
+            g.decorCursor += if (ocean) sea.decor(leg, s) else when (leg.index) {
                 0 -> if (mars) marsCarDecor(s) else carDecor(s)
                 1 -> skyDecor(s)
                 else -> spaceDecor(s)
@@ -80,7 +82,7 @@ internal class Spawner(private val g: Game) {
 
     private fun laneX(i: Int): Float = (i - (Tuning.LANES - 1) / 2f) * Tuning.LANE_WIDTH
 
-    private fun place(kind: Kind, s: Float, dz: Float, x: Float, y: Float = 0f, variant: Int = 0): Entity {
+    internal fun place(kind: Kind, s: Float, dz: Float, x: Float, y: Float = 0f, variant: Int = 0): Entity {
         val e = g.obtain(kind)
         e.x = x
         e.y = y
@@ -118,7 +120,7 @@ internal class Spawner(private val g: Game) {
         }
     }
 
-    private fun pickWeighted(w: FloatArray): Int {
+    internal fun pickWeighted(w: FloatArray): Int {
         var total = 0f
         for (v in w) total += v
         var r = rng.float() * total
@@ -129,11 +131,11 @@ internal class Spawner(private val g: Game) {
         return w.size - 1
     }
 
-    private fun gap(d: Float): Float = Mathx.lerp(70f, 40f, d) * rng.range(0.9f, 1.25f) * g.difficulty.gapScale
+    internal fun gap(d: Float): Float = Mathx.lerp(70f, 40f, d) * rng.range(0.9f, 1.25f) * g.difficulty.gapScale
 
     // ---- car leg ------------------------------------------------------------------------------
 
-    private fun carPattern(s: Float, d: Float, hazards: Boolean): Float {
+    internal fun carPattern(s: Float, d: Float, hazards: Boolean): Float {
         if (!hazards) return if (rng.chance(0.3f)) nitro(s) else coinLine(s) + 10f
 
         val needsRepair = g.player.health < g.maxHealth
@@ -150,7 +152,7 @@ internal class Spawner(private val g: Game) {
             if (needsRepair) 0.9f else 0.05f, // repair
             2.6f * max(0f, d - 0.35f), // chicane
         )
-        if (mars) return marsCarPattern(s, d, w)
+        if (mars || ocean) return marsCarPattern(s, d, w) // the seabed has crabs where Mars has boulders
         return when (pickWeighted(w)) {
             0 -> coinLine(s) + 14f
             1 -> coinWave(s) + 14f
@@ -200,7 +202,7 @@ internal class Spawner(private val g: Game) {
             val r = rng.range(1.0f, 1.5f)
             val lane = rng.int(Tuning.LANES)
             aimed[lane] = true
-            val e = place(Kind.BOULDER, s, k * 28f, side * rng.range(9.5f, 11.5f), r, variant = rng.int(4))
+            val e = place(if (ocean) Kind.CRAB else Kind.BOULDER, s, k * 28f, side * rng.range(9.5f, 11.5f), r, variant = rng.int(if (ocean) 2 else 4))
             e.radius = r * 0.9f
             e.scale = r
             val seconds = rng.range(1.5f, 1.9f)
@@ -214,7 +216,7 @@ internal class Spawner(private val g: Game) {
         return n * 28f + 24f
     }
 
-    private fun coinLine(s: Float): Float {
+    internal fun coinLine(s: Float): Float {
         val lane = rng.int(Tuning.LANES)
         val n = rng.intRange(6, 10)
         for (k in 0 until n) place(Kind.COIN, s, k * 5f, laneX(lane))
@@ -304,7 +306,7 @@ internal class Spawner(private val g: Game) {
         return 18f
     }
 
-    private fun nitro(s: Float): Float {
+    internal fun nitro(s: Float): Float {
         val lane = rng.int(Tuning.LANES)
         for (k in 0 until 3) place(Kind.COIN, s, k * 5f, laneX(lane))
         place(Kind.NITRO, s, 17f, laneX(lane))
@@ -355,8 +357,8 @@ internal class Spawner(private val g: Game) {
         }
     }
 
-    private fun flyX(): Float = rng.range(-9.5f, 9.5f)
-    private fun flyY(): Float = rng.range(8f, 26f)
+    internal fun flyX(): Float = rng.range(-9.5f, 9.5f)
+    internal fun flyY(): Float = rng.range(8f, 26f)
 
     private fun ringChain(s: Float, n: Int, ringScale: Float): Float {
         var x = rng.range(-6f, 6f)
@@ -414,7 +416,7 @@ internal class Spawner(private val g: Game) {
         return n * 26f
     }
 
-    private fun stormCells(s: Float, d: Float): Float {
+    internal fun stormCells(s: Float, d: Float): Float {
         val n = 2 + (d * 2.5f).toInt()
         for (k in 0 until n) {
             val e = place(Kind.STORM, s, k * rng.range(24f, 40f), rng.range(-10f, 10f), rng.range(9f, 25f), variant = rng.int(2))
@@ -440,14 +442,14 @@ internal class Spawner(private val g: Game) {
         return n * 30f
     }
 
-    private fun orbTrail(s: Float): Float {
+    internal fun orbTrail(s: Float): Float {
         val x = flyX(); val y = flyY()
         for (k in 0 until 3) place(Kind.COIN, s, k * 6f, x, y)
         place(Kind.ORB, s, 20f, x, y)
         return 24f
     }
 
-    private fun airRepair(s: Float): Float {
+    internal fun airRepair(s: Float): Float {
         place(Kind.REPAIR, s, 0f, flyX(), flyY())
         return 6f
     }
@@ -580,6 +582,10 @@ internal class Spawner(private val g: Game) {
     // ---- gates --------------------------------------------------------------------------------
 
     private fun spawnGate(leg: LegSpec) {
+        if (ocean) {
+            sea.gate(leg)
+            return
+        }
         when (leg.index) {
             0 -> {
                 val gate = place(Kind.GATE_ARCH, leg.length, 0f, 0f, 0f, variant = 0)

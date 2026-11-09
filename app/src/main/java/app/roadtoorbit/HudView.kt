@@ -17,6 +17,7 @@ import android.view.WindowInsets
 import app.roadtoorbit.game.HudState
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.game.Tuning
+import app.roadtoorbit.game.World
 import app.roadtoorbit.gfx.VehicleMode
 import java.util.Locale
 import kotlin.math.PI
@@ -280,11 +281,8 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
             line.color = if (current) Color.rgb(111, 232, 255) else Color.argb(if (reached) 220 else 100, 255, 255, 255)
             c.drawCircle(cx, ty, 3.1f * u, line)
             val ic = if (reached) Color.WHITE else Color.argb(120, 255, 255, 255)
-            when (i) {
-                0 -> iconCar(c, cx, ty, 1.7f * u, ic)
-                1 -> iconPlane(c, cx, ty, 1.8f * u, ic)
-                else -> iconRocket(c, cx, ty, 1.9f * u, ic)
-            }
+            val mode = s.legModes[i]
+            drawFormIcon(c, mode, s.world, cx, ty, (if (mode == VehicleMode.CAR) 1.7f else if (mode == VehicleMode.PLANE) 1.8f else 1.9f) * u, ic)
         }
         label(c, s.legName, left + 1f * u, ty + 8.2f * u, 3.0f * u, Color.WHITE, Paint.Align.LEFT, sansItalic)
         label(c, s.legSubtitle, left + 1f * u, ty + 11.2f * u, 2.1f * u, Color.argb(200, 200, 215, 255), Paint.Align.LEFT, light)
@@ -324,11 +322,13 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         label(c, speedText, w / 2 + 1f * u, y - 2f * u, 6f * u, Color.WHITE, Paint.Align.RIGHT, sansItalic)
         label(c, " KM/H", w / 2 + 1f * u, y - 2f * u, 2.4f * u, Color.argb(235, 235, 243, 255), Paint.Align.LEFT, sans)
         if (s.legIndex > 0) {
-            if (abs(s.altitudeKm - altCache) > 0.05f) {
+            val sea = s.world == World.OCEAN
+            if (abs(s.altitudeKm - altCache) > (if (sea) 0.01f else 0.05f)) {
                 altCache = s.altitudeKm
-                altText = if (s.altitudeKm >= 1000f) String.format(Locale.US, "%,.0f km", s.altitudeKm) else String.format(Locale.US, "%.1f km", s.altitudeKm)
+                altText = if (sea) String.format(Locale.US, "%,d m", (s.altitudeKm * 100f).toInt() * 10)
+                else if (s.altitudeKm >= 1000f) String.format(Locale.US, "%,.0f km", s.altitudeKm) else String.format(Locale.US, "%.1f km", s.altitudeKm)
             }
-            label(c, "ALT $altText", w / 2, y - 8.6f * u, 2.9f * u, Color.argb(255, 215, 240, 255), Paint.Align.CENTER, sans)
+            label(c, (if (sea) "DEPTH " else "ALT ") + altText, w / 2, y - 8.6f * u, 2.9f * u, Color.argb(255, 215, 240, 255), Paint.Align.CENTER, sans)
         }
     }
 
@@ -390,8 +390,8 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
 
         // morph glyph: car -> plane -> rocket
         val ic = if (ready) Color.WHITE else Color.argb(130, 255, 255, 255)
-        val next = s.legIndex + 1
-        if (next == 1) iconPlane(c, xform[0], xform[1] - 2.2f * u, 5.2f * u, ic) else iconRocket(c, xform[0], xform[1] - 2.2f * u, 5.4f * u, ic)
+        val next = (s.legIndex + 1).coerceAtMost(s.legModes.size - 1)
+        drawFormIcon(c, s.legModes[next], s.world, xform[0], xform[1] - 2.2f * u, (if (s.legModes[next] == VehicleMode.ROCKET) 5.4f else 5.2f) * u, ic)
         label(c, "TRANSFORM", xform[0], xform[1] + 6.2f * u, 2.5f * u, if (ready) Color.WHITE else Color.argb(150, 255, 255, 255), Paint.Align.CENTER, sansItalic)
         if (!ready) {
             // distance until the zone opens
@@ -515,7 +515,11 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         val pairLeft = cx - (lw + 2.5f * u + dw) / 2
         rect.set(pairLeft, dy - dh / 2, pairLeft + lw, dy + dh / 2)
         pills[4].set(rect)
-        val levelColor = if (s.levelIndex == 0) Color.argb(190, 40, 90, 150) else Color.argb(200, 160, 70, 40)
+        val levelColor = when (s.levelIndex) {
+            0 -> Color.argb(190, 40, 90, 150)
+            1 -> Color.argb(200, 160, 70, 40)
+            else -> Color.argb(200, 20, 120, 140)
+        }
         drawPillColored(c, rect, "LEVEL ${s.levelIndex + 1}: ${s.levelName}", levelColor, 4)
         rect.set(pairLeft + lw + 2.5f * u, dy - dh / 2, pairLeft + lw + 2.5f * u + dw, dy + dh / 2)
         pills[3].set(rect)
@@ -679,6 +683,51 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         txt.color = Color.argb(a, Color.red(color), Color.green(color), Color.blue(color))
         c.drawText(s, x, y, txt)
         txt.letterSpacing = 0f
+    }
+
+    /** The icon of a vehicle form, in the dress of the level's world (the ocean's waterplane, submarine and seabed car). */
+    private fun drawFormIcon(c: Canvas, mode: VehicleMode, world: World, cx: Float, cy: Float, s: Float, color: Int) {
+        val ocean = world == World.OCEAN
+        when (mode) {
+            VehicleMode.CAR -> if (ocean) iconSeaCar(c, cx, cy, s, color) else iconCar(c, cx, cy, s, color)
+            VehicleMode.PLANE -> if (ocean) iconSeaplane(c, cx, cy, s, color) else iconPlane(c, cx, cy, s, color)
+            VehicleMode.ROCKET -> if (ocean) iconSub(c, cx, cy, s, color) else iconRocket(c, cx, cy, s, color)
+        }
+    }
+
+    /** A seaplane from above: the plane with a float on each side of the fuselage. */
+    private fun iconSeaplane(c: Canvas, cx: Float, cy: Float, s: Float, color: Int) {
+        iconPlane(c, cx, cy, s, color)
+        fill.shader = null; fill.color = color
+        for (side in intArrayOf(-1, 1)) {
+            rect.set(cx + side * 0.52f * s - 0.1f * s, cy - 0.35f * s, cx + side * 0.52f * s + 0.1f * s, cy + 0.55f * s)
+            c.drawRoundRect(rect, 0.1f * s, 0.1f * s, fill)
+        }
+    }
+
+    /** A submarine from above: a long hull with a conning tower, a periscope and tail fins. */
+    private fun iconSub(c: Canvas, cx: Float, cy: Float, s: Float, color: Int) {
+        fill.shader = null; fill.color = color
+        rect.set(cx - 0.27f * s, cy - 1.0f * s, cx + 0.27f * s, cy + 0.85f * s)
+        c.drawRoundRect(rect, 0.27f * s, 0.27f * s, fill)
+        rect.set(cx - 0.17f * s, cy - 0.35f * s, cx + 0.17f * s, cy + 0.2f * s)
+        c.drawRoundRect(rect, 0.08f * s, 0.08f * s, fill)
+        line.strokeWidth = 0.1f * s
+        line.color = color
+        c.drawLine(cx, cy - 0.35f * s, cx, cy - 0.62f * s, line)
+        path.reset()
+        path.moveTo(cx - 0.27f * s, cy + 0.55f * s); path.lineTo(cx - 0.72f * s, cy + 1.0f * s); path.lineTo(cx - 0.2f * s, cy + 0.85f * s); path.close()
+        path.moveTo(cx + 0.27f * s, cy + 0.55f * s); path.lineTo(cx + 0.72f * s, cy + 1.0f * s); path.lineTo(cx + 0.2f * s, cy + 0.85f * s); path.close()
+        c.drawPath(path, fill)
+    }
+
+    /** The car with bubbles rising from it. */
+    private fun iconSeaCar(c: Canvas, cx: Float, cy: Float, s: Float, color: Int) {
+        iconCar(c, cx, cy + 0.15f * s, s, color)
+        fill.shader = null; fill.color = color
+        c.drawCircle(cx + 0.25f * s, cy - 0.78f * s, 0.12f * s, fill)
+        c.drawCircle(cx + 0.58f * s, cy - 1.0f * s, 0.08f * s, fill)
+        c.drawCircle(cx + 0.02f * s, cy - 1.02f * s, 0.07f * s, fill)
     }
 
     private fun iconCar(c: Canvas, cx: Float, cy: Float, s: Float, color: Int) {

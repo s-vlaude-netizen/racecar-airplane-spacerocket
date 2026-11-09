@@ -20,7 +20,19 @@ class WorldLook {
     /** 0..1 how much of the "approaching the Moon" look is active. */
     var moonApproach = 0f
 
+    /**
+     * The ocean level: the height of the sea surface in the vehicle's frame (0 while the waterplane skims it, rising over the
+     * submarine as it dives, out of sight on the seabed; [groundY] is the seabed there), and how deep the journey is,
+     * 0 at the surface to 1 in the trench.
+     */
+    var surfaceY = 0f
+    var depth = 0f
+
     fun update(g: Game) {
+        if (g.level.world == World.OCEAN) {
+            updateOcean(g)
+            return
+        }
         val p = Mathx.clamp01(g.legDist / g.leg.length)
         when (g.phase) {
             Phase.FINALE, Phase.VICTORY -> {
@@ -58,6 +70,44 @@ class WorldLook {
                 terrainOn = fall < 0.8f
                 altitude = 1f + 2f * Mathx.smoothstep(0f, 0.6f, p)
                 roadVisible = false
+            }
+        }
+    }
+
+    /** The sea, the dive under it and the seabed: see [surfaceY]. The terrain stays "on" throughout; the renderer decides what to draw. */
+    private fun updateOcean(g: Game) {
+        val p = Mathx.clamp01(g.legDist / g.leg.length)
+        terrainOn = true
+        terrainStyle = 0f
+        altitude = 0f
+        moonApproach = 0f
+        if (g.phase == Phase.FINALE || g.phase == Phase.VICTORY) {
+            // the arrival: on the seabed, in the light of the city
+            surfaceY = 900f; depth = 1f; groundY = 0f; roadVisible = true
+            return
+        }
+        when (g.legIndex) {
+            0 -> {
+                surfaceY = 0f; depth = 0f
+                groundY = -4000f // the sea is far deeper than anything the waterplane can see
+                roadVisible = false
+            }
+            1 -> {
+                // the plunge happens during the transformation: the surface comes up over the vehicle; then it slowly recedes
+                val plunge = if (g.xf.active) Mathx.smoothstep(0f, 0.9f, g.xf.t) else 1f
+                surfaceY = 22f * plunge + 48f * Mathx.smoothstep(0.02f, 0.4f, p) + 330f * Mathx.smoothstep(0.4f, 1f, p)
+                depth = 0.9f * Mathx.smoothstep(0f, 0.8f, p)
+                val rise = Mathx.smoothstep(0.25f, 1f, p)
+                groundY = Mathx.lerp(-420f, -6f, rise * rise)
+                roadVisible = false
+            }
+            else -> {
+                // the seabed comes up to meet the vehicle as it lands on it
+                val land = if (g.xf.active) Mathx.smoothstep(0.05f, 0.92f, g.xf.t) else 1f
+                surfaceY = 900f
+                depth = 0.9f + 0.1f * Mathx.smoothstep(0f, 1f, p)
+                groundY = Mathx.lerp(-6f, 0f, land)
+                roadVisible = true
             }
         }
     }

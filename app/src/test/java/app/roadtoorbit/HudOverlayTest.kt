@@ -6,6 +6,7 @@ import android.view.View
 import app.roadtoorbit.game.Difficulty
 import app.roadtoorbit.game.HudState
 import app.roadtoorbit.game.Phase
+import app.roadtoorbit.game.World
 import app.roadtoorbit.gfx.VehicleMode
 import java.io.File
 import java.util.Properties
@@ -52,6 +53,8 @@ class HudOverlayTest {
         s.phase = Phase.valueOf(str("phase")); s.legIndex = int("legIndex"); s.legName = str("legName"); s.legSubtitle = str("legSubtitle")
         s.levelIndex = int("levelIndex"); s.levelName = str("levelName"); s.nextLevelName = str("nextLevelName")
         if (str("legLength").isNotEmpty()) { s.legLength = flt("legLength"); s.legZoneLength = flt("legZoneLength") }
+        s.world = if (str("world").isEmpty()) World.EARTH else World.valueOf(str("world"))
+        for (i in s.legModes.indices) str("legMode$i").takeIf { it.isNotEmpty() }?.let { s.legModes[i] = VehicleMode.valueOf(it) }
         s.mode = VehicleMode.valueOf(str("mode")); s.journey = flt("journey"); s.legProgress = flt("legProgress"); s.zoneProgress = flt("zoneProgress")
         s.distanceToGate = flt("distanceToGate"); s.score = int("score"); s.bestScore = int("bestScore"); s.coins = int("coins")
         s.rings = int("rings"); s.ringStreak = int("ringStreak"); s.health = int("health"); s.maxHealth = int("maxHealth")

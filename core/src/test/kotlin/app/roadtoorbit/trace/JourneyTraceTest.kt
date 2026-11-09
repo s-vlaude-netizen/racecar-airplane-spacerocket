@@ -52,7 +52,43 @@ class JourneyTraceTest {
         }
         game.startRun(7)
 
-        val captures = listOf(
+        // the ocean level has its own journey: the sea, the dive, the landing on the seabed and the arrival
+        fun near(g: Game, kind: Kind, zFar: Float, zNear: Float, dx: Float = 9f, dy: Float = 99f) =
+            g.entities.any { e -> e.kind == kind && !e.hit && e.z > zFar && e.z < zNear && kotlin.math.abs(e.x - g.player.x) < dx && kotlin.math.abs(g.entityY(e) - g.player.y) < dy }
+        val oceanCaptures = listOf(
+            Capture("countdown") { it.phase == Phase.COUNTDOWN && it.phaseTime > 1.4f },
+            Capture("sea_300") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 300f },
+            Capture("sea_stack") { g -> g.phase == Phase.RUN && g.legIndex == 0 && g.legDist > 200f && near(g, Kind.PEAK, -80f, -40f, 12f) },
+            Capture("sea_ship") { g -> g.phase == Phase.RUN && g.legIndex == 0 && g.legDist > 200f && near(g, Kind.SHIP, -90f, -40f, 14f) },
+            Capture("sea_gulls") { g -> g.phase == Phase.RUN && g.legIndex == 0 && g.legDist > 200f && near(g, Kind.BALLOON, -60f, -30f, 8f, 8f) },
+            Capture("sea_seaplane") { g -> g.phase == Phase.RUN && g.legIndex == 0 && g.legDist > 200f && near(g, Kind.JET, -70f, -30f, 30f, 12f) },
+            Capture("sea_1800") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 1800f },
+            Capture("sea_zone") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 3300f },
+            Capture("dive_a") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.3f },
+            Capture("dive_b") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.55f },
+            Capture("dive_c") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.85f },
+            Capture("deep_300") { it.phase == Phase.RUN && it.legIndex == 1 && !it.xf.active && it.legDist > 300f },
+            Capture("deep_mine") { g -> g.phase == Phase.RUN && g.legIndex == 1 && !g.xf.active && near(g, Kind.MINE, -70f, -35f, 8f, 8f) },
+            Capture("deep_shark") { g -> g.phase == Phase.RUN && g.legIndex == 1 && !g.xf.active && near(g, Kind.SHARK, -70f, -30f, 30f, 12f) },
+            Capture("deep_jelly") { g -> g.phase == Phase.RUN && g.legIndex == 1 && !g.xf.active && near(g, Kind.JELLY, -60f, -30f, 8f, 8f) },
+            Capture("deep_1800") { it.phase == Phase.RUN && it.legIndex == 1 && it.legDist > 1800f },
+            Capture("deep_3300") { it.phase == Phase.RUN && it.legIndex == 1 && it.legDist > 3300f },
+            Capture("land_a") { it.xf.active && it.legIndex == 2 && it.xf.t > 0.3f },
+            Capture("land_b") { it.xf.active && it.legIndex == 2 && it.xf.t > 0.65f },
+            Capture("land_c") { it.xf.active && it.legIndex == 2 && it.xf.t > 0.95f },
+            Capture("trench_400") { it.phase == Phase.RUN && it.legIndex == 2 && !it.xf.active && it.legDist > 400f },
+            Capture("trench_crab") { g -> g.phase == Phase.RUN && g.legIndex == 2 && g.entities.any { e -> e.kind == Kind.CRAB && e.vx != 0f && e.z > -60f && e.z < -25f } },
+            Capture("trench_traffic") { g -> g.phase == Phase.RUN && g.legIndex == 2 && near(g, Kind.TRAFFIC, -90f, -45f, 6f) },
+            Capture("trench_1800") { it.phase == Phase.RUN && it.legIndex == 2 && it.legDist > 1800f },
+            Capture("trench_gate") { it.phase == Phase.RUN && it.legIndex == 2 && it.legDist > it.leg.length - 120f },
+            Capture("arrive_a") { it.phase == Phase.FINALE && it.finaleT > 1.5f },
+            Capture("arrive_b") { it.phase == Phase.FINALE && it.finaleT > 3.6f },
+            Capture("arrive_c") { it.phase == Phase.FINALE && it.finaleT > 5.6f },
+            Capture("arrive_d") { it.phase == Phase.FINALE && it.finaleT > 6.9f },
+            Capture("victory") { it.phase == Phase.VICTORY && it.phaseTime > 1.5f },
+            Capture("victory_late") { it.phase == Phase.VICTORY && it.phaseTime > 7f },
+        )
+        val captures = if (game.level.world == app.roadtoorbit.game.World.OCEAN) oceanCaptures else listOf(
             Capture("countdown") { it.phase == Phase.COUNTDOWN && it.phaseTime > 1.4f },
             Capture("car_200") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 230f },
             Capture("car_900") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 900f },
@@ -107,6 +143,8 @@ class JourneyTraceTest {
         put("phase", h.phase.name); put("legIndex", h.legIndex); put("legName", h.legName); put("legSubtitle", h.legSubtitle)
         put("levelIndex", h.levelIndex); put("levelName", h.levelName); put("nextLevelName", h.nextLevelName)
         put("legLength", h.legLength); put("legZoneLength", h.legZoneLength)
+        put("world", h.world.name)
+        for (i in h.legModes.indices) put("legMode$i", h.legModes[i].name)
         put("mode", h.mode.name); put("journey", h.journey); put("legProgress", h.legProgress); put("zoneProgress", h.zoneProgress)
         put("distanceToGate", h.distanceToGate); put("score", h.score); put("bestScore", h.bestScore); put("coins", h.coins)
         put("rings", h.rings); put("ringStreak", h.ringStreak); put("health", h.health); put("maxHealth", h.maxHealth)

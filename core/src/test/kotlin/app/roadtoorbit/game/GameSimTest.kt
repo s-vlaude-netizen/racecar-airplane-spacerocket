@@ -27,7 +27,9 @@ class GameSimTest {
                 )
                 if (r.finished) {
                     finished++
-                    assertEquals(listOf(VehicleMode.CAR, VehicleMode.PLANE, VehicleMode.ROCKET, VehicleMode.CAR), r.modes.take(4))
+                    // the vehicle takes the forms of the legs in order; a landing finale adds the car that drives off
+                    val expected = level.legs.map { it.mode } + (if (level.finale == Finale.LANDING) listOf(VehicleMode.CAR) else emptyList())
+                    assertEquals(expected, r.modes, "${level.name}: the forms the vehicle went through")
                     assertEquals(2, r.transforms)
                 }
             }

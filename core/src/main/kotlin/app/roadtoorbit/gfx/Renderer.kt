@@ -57,6 +57,8 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
     private val lTint = lit.uniform("uTint")
     private val lMat = lit.uniform("uMat")
     private val lRim = lit.uniform("uRim")
+    private val lLamp = lit.uniform("uLamp")
+    private val lLampCol = lit.uniform("uLampCol")
 
     // ---- sky uniforms
     private val sRight = sky.uniform("uCamRight")
@@ -82,6 +84,9 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
     private val tWorld = terrain.uniform("uWorld")
     private val tNear = terrain.uniform("uNear")
     private val tRange = terrain.uniform("uRange")
+    private val tTime = terrain.uniform("uTime")
+    private val tLamp = terrain.uniform("uLamp")
+    private val tLampCol = terrain.uniform("uLampCol")
     private val tCam = terrain.uniform("uCamPos")
     private val tSunDir = terrain.uniform("uSunDir")
     private val tSunCol = terrain.uniform("uSunColor")
@@ -253,6 +258,8 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
             gl.uniform3f(lAmbGround, env.ambGround[0], env.ambGround[1], env.ambGround[2])
             gl.uniform3f(lFogCol, env.fogColor[0], env.fogColor[1], env.fogColor[2])
             gl.uniform1f(lFogDen, env.fogDensity)
+            gl.uniform4f(lLamp, env.lamp[0], env.lamp[1], env.lamp[2], env.lamp[3])
+            gl.uniform3f(lLampCol, env.lampColor[0], env.lampColor[1], env.lampColor[2])
         }
     }
 
@@ -289,6 +296,7 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
     fun drawTerrain(
         travelled: Double, cell: Float, cols: Int, rows: Int, rowsBehind: Int, tint: FloatArray,
         under: TerrainWindow? = null, fogScale: Float = 1f, range: Float = 1f,
+        groundY: Float = env.groundY, style: Float = env.terrainStyle, amp: Float = env.terrainAmp, corridor: Float = env.corridor,
     ) {
         if (!env.terrainOn) return
         if (current != terrain.id) {
@@ -306,13 +314,16 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
             gl.uniform3f(tAmbSky, env.ambSky[0], env.ambSky[1], env.ambSky[2])
             gl.uniform3f(tAmbGround, env.ambGround[0], env.ambGround[1], env.ambGround[2])
             gl.uniform3f(tFogCol, env.fogColor[0], env.fogColor[1], env.fogColor[2])
+            gl.uniform1f(tTime, env.time)
+            gl.uniform4f(tLamp, env.lamp[0], env.lamp[1], env.lamp[2], env.lamp[3])
+            gl.uniform3f(tLampCol, env.lampColor[0], env.lampColor[1], env.lampColor[2])
         }
         gl.uniform1f(tFogDen, env.fogDensity * fogScale)
         val rowIndex = Math.floor(travelled / cell).toLong()
         val slide = (travelled - rowIndex * cell).toFloat()
         gl.uniform4f(tGrid, cell, cols.toFloat(), rowsBehind.toFloat(), (rowIndex - rowsBehind).toFloat())
         gl.uniform1f(tSlide, slide)
-        gl.uniform4f(tTer, env.groundY, env.terrainAmp, env.corridor, env.terrainStyle)
+        gl.uniform4f(tTer, groundY, amp, corridor, style)
         gl.uniform4f(tTerCol, tint[0], tint[1], tint[2], 1f)
         gl.uniform1f(tWorld, env.world)
         if (under != null) gl.uniform4f(tNear, under.halfWidth, under.zFar, under.zNear, under.sink) else gl.uniform4f(tNear, 0f, 0f, 0f, 0f)

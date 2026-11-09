@@ -3,6 +3,7 @@ package app.roadtoorbit.gfx
 import app.roadtoorbit.game.Entity
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.Kind
+import app.roadtoorbit.game.OceanSpawner
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.game.World
 import app.roadtoorbit.gl.Gles
@@ -53,7 +54,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
     }
 
     fun render(g: Game) {
-        envModel.update(g, env)
+        envModel.update(g, env, rig.camera.ey)
         bolts = 0
         renderer.beginFrame(env, rig.camera)
         celestials(g)
@@ -70,6 +71,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
     // ---- celestial bodies --------------------------------------------------------------------------
 
     private fun celestials(g: Game) {
+        if (g.level.world == World.OCEAN) return // no sky to see: the sea, and under it the dark
         val look = g.look
         val inSpace = g.legIndex == g.level.lastLeg || g.phase == Phase.FINALE || g.phase == Phase.VICTORY
         if (!inSpace || g.phase == Phase.MENU) return
@@ -120,6 +122,10 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
     private fun terrain(g: Game) {
         if (!env.terrainOn) return
         if (g.phase == Phase.MENU) return
+        if (g.level.world == World.OCEAN) {
+            oceanTerrain(g)
+            return
+        }
         if (env.terrainStyle > 1.5f) {
             moonTerrain(g)
         } else {
@@ -148,9 +154,32 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         )
     }
 
+    /**
+     * The ocean: the sea surface (the same grid seen from above or, once the camera is under it, from below) and the seabed,
+     * which only comes into view late in the dive.
+     */
+    private fun oceanTerrain(g: Game) {
+        val look = g.look
+        val below = rig.camera.ey < look.surfaceY
+        if (look.surfaceY < 500f) {
+            if (below) {
+                renderer.drawTerrain(g.travelled, 16f, 64, 64, 8, env.terrainTint, groundY = look.surfaceY, style = 2f, amp = env.terrainAmp)
+            } else {
+                renderer.drawTerrain(g.travelled, 10f, 96, 110, 8, env.terrainTint, groundY = look.surfaceY, style = 0f, amp = env.terrainAmp)
+            }
+        }
+        if (below && look.groundY > -260f) {
+            renderer.drawTerrain(g.travelled, 10f, 64, 80, 8, env.terrainTint, groundY = look.groundY, style = 1f, amp = 1f, corridor = env.corridor)
+        }
+    }
+
     // ---- road ------------------------------------------------------------------------------------
 
     private fun road(g: Game) {
+        if (g.level.world == World.OCEAN) {
+            seaRoad(g)
+            return
+        }
         if (g.phase == Phase.MENU || g.legIndex > 1 || !g.look.roadVisible) return
         val leg0 = g.level.legs[0]
         val routeS = if (g.legIndex == 0) g.legDist else leg0.length + g.legDist
@@ -168,6 +197,30 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         }
     }
 
+    /** The sunken highway: it starts where the dive ends, so the submarine sees its glowing lanes ahead as it comes down onto it. */
+    private fun seaRoad(g: Game) {
+        if (g.phase == Phase.MENU) return
+        val last = g.level.legs[g.level.lastLeg]
+        val onRoad = g.legIndex == g.level.lastLeg || g.phase == Phase.FINALE || g.phase == Phase.VICTORY
+        val nearEnd = g.legIndex == g.level.lastLeg - 1 && g.look.groundY > -60f
+        if (!onRoad && !nearEnd) return
+        val routeS = if (onRoad) g.legDist else g.legDist - g.level.legs[g.level.lastLeg - 1].length
+        val endRoute = last.length + OceanSpawner.GATE_AHEAD + 260f
+        val seg = renderer.meshes[MeshId.ROAD_SEA]
+        val glow = renderer.meshes[MeshId.ROAD_SEA_GLOW]
+        var s0 = max(0f, floor((routeS - 40f) / SEG) * SEG)
+        while (s0 < routeS + 800f && s0 < endRoute) {
+            if (s0 + SEG > routeS - 30f) {
+                Mat4.setTrs(m, 0f, env.groundY, -(s0 - routeS), 0f, 0f, 0f, 1f, 1f, 1f)
+                mat.reset().gloss(0.04f, 8f)
+                renderer.drawLit(seg, m, mat)
+                mat.reset(); mat.emissive = 0.9f; mat.fogScale = 0.6f
+                renderer.drawLit(glow, m, mat)
+            }
+            s0 += SEG
+        }
+    }
+
     // ---- entities --------------------------------------------------------------------------------
 
     private fun entities(g: Game) {
@@ -180,6 +233,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
 
     private fun drawEntity(g: Game, e: Entity) {
         val y = g.entityY(e)
+        if (g.level.world == World.OCEAN && drawOceanEntity(g, e, y)) return
         val mars = g.level.world == World.MARS
         mat.reset()
         var id: MeshId
@@ -287,6 +341,79 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         }
     }
 
+    /**
+     * The ocean's entities: its own models for the kinds the other levels share, and for the kinds only it has. Returns false for
+     * those that look the same everywhere (pickups, rings, clouds, storms); [drawEntity] draws them.
+     */
+    private fun drawOceanEntity(g: Game, e: Entity, y: Float): Boolean {
+        val look = g.look
+        val underwater = g.legIndex >= 1 || g.phase == Phase.FINALE || g.phase == Phase.VICTORY
+        mat.reset()
+        if (underwater) mat.fogScale = 0.6f // what is in the way has to stay visible in the water
+        val id: MeshId
+        var sx = e.scale
+        var sy = e.scale
+        var sz = e.scale
+        var ty = y
+        when (e.kind) {
+            Kind.TRAFFIC -> {
+                id = when (e.variant) { 4 -> SUB_HAULERS[e.tint % 3]; 5 -> SUB_VANS[e.tint % 3]; else -> SUB_CARS[e.tint % 3] }
+                mat.gloss(0.45f, 36f); sx = 1f; sy = 1f; sz = 1f
+            }
+            Kind.BARRIER -> { id = MeshId.CONTAINER; sx = 1f; sy = 1f; sz = 1f }
+            Kind.CONE -> { id = MeshId.KELP_TUFT; sx = 1f; sy = 1f; sz = 1f }
+            Kind.BARREL -> { id = MeshId.MINE_0; val r = e.radius / 0.92f; sx = r; sy = r; sz = r; mat.gloss(0.3f, 20f) }
+            Kind.CRAB -> { id = CRABS[e.variant % 2]; mat.gloss(0.25f, 20f) }
+            Kind.PEAK -> {
+                id = SEA_STACKS[e.variant % 3]
+                sx = e.hx; sz = e.hx; sy = e.hy * 2f
+                ty = y - e.hy
+            }
+            Kind.SHIP -> { id = SHIPS[e.variant % 3]; sx = 1f; sy = 1f; sz = 1f; ty = y - e.hy; mat.gloss(0.3f, 24f) }
+            Kind.BALLOON -> { id = FLOCKS[e.variant % 4]; sx = 1f; sy = 1f; sz = 1f }
+            Kind.JET -> { id = SEAPLANES[e.variant % 3]; mat.gloss(0.3f, 20f); sx = 1f; sy = 1f; sz = 1f }
+            Kind.MINE -> { id = MINES[e.variant % 2]; mat.gloss(0.35f, 24f); mat.rim(0.9f, 0.2f, 0.1f, 3f) }
+            Kind.JELLY -> {
+                id = JELLIES[e.variant % 2]
+                val pulse = 1f + 0.09f * sin(e.age * 3.1f + e.x)
+                sx = pulse; sz = pulse; sy = 1f / pulse
+                mat.emissive = 0.4f
+            }
+            Kind.SHARK -> { id = SHARKS[e.variant % 3]; mat.gloss(0.25f, 20f); sx = 1f; sy = 1f; sz = 1f }
+            Kind.CRYSTAL -> { id = MeshId.PEARL; mat.gloss(0.8f, 50f); mat.emissive = 0.5f; mat.rim(0.3f, 0.9f, 1f, 2.2f); sx = 1f; sy = 1f; sz = 1f }
+            Kind.PORTAL -> {
+                id = if (e.variant == 0) MeshId.DIVE_GATE_BIG else MeshId.DIVE_GATE_SMALL
+                mat.emissive = 0.9f; mat.fogScale = 0.4f
+                sx = 1f; sy = 1f; sz = 1f
+            }
+            Kind.START_ARCH -> { id = MeshId.START_BUOYS; sx = 1f; sy = 1f; sz = 1f; ty = look.surfaceY }
+            Kind.GATE_ARCH -> {
+                id = MeshId.ATLANTIS_GATE
+                mat.emissive = 0.3f; mat.fogScale = 0.35f
+                sx = 1f; sy = 1f; sz = 1f
+            }
+            Kind.MOON -> {
+                // Atlantis: the city, and its lights on top, visible from far away
+                Mat4.setTrs(m, e.x, ty, e.z, 0f, 0f, 0f, 1f, 1f, 1f)
+                mat.fogScale = 0.22f
+                renderer.drawLit(renderer.meshes[MeshId.ATLANTIS], m, mat)
+                mat.reset(); mat.emissive = 1f; mat.fogScale = 0.18f
+                renderer.drawLit(renderer.meshes[MeshId.ATLANTIS_LIGHTS], m, mat)
+                return true
+            }
+            Kind.SEASCAPE -> {
+                id = OceanSpec.SEASCAPE[e.variant.coerceIn(0, OceanSpec.SEASCAPE.size - 1)]
+                if (e.variant == OceanSpec.VENT) mat.emissive = 0.25f
+                if (e.variant == OceanSpec.SCHOOL || e.variant == OceanSpec.SCHOOL + 1) mat.emissive = 0.12f
+            }
+            Kind.ROCK -> { id = ROCKS[e.variant % 3]; mat.tint(0.62f, 0.8f, 0.84f) }
+            else -> return false
+        }
+        Mat4.setTrs(m, e.x, ty, e.z, e.rx, e.ry, e.rz, sx, sy, sz)
+        renderer.drawLit(renderer.meshes[id], m, mat)
+        return true
+    }
+
     /** 0..1 flash intensity for a storm cloud, deterministic per cloud. */
     private fun lightning(e: Entity): Float {
         val t = e.age * 2.6f + e.x * 0.37f
@@ -308,7 +435,9 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
     private fun shadow(g: Game) {
         val p = g.player
         if (!p.alive || g.phase == Phase.MENU) return
-        val ground = if (g.phase == Phase.FINALE || g.phase == Phase.VICTORY) g.finaleGroundY else g.look.groundY
+        val ocean = g.level.world == World.OCEAN
+        if (ocean && g.legIndex == 1 && g.phase != Phase.FINALE && g.phase != Phase.VICTORY) return // no shadows under water
+        val ground = if (ocean && g.legIndex == 0) g.look.surfaceY + 0.5f else if (g.phase == Phase.FINALE || g.phase == Phase.VICTORY) g.finaleGroundY else g.look.groundY
         if (!g.look.terrainOn && g.phase != Phase.FINALE && g.phase != Phase.VICTORY) return
         val h = max(0f, p.y - ground)
         if (h > 90f) return
@@ -373,5 +502,16 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         val SPIRES = arrayOf(MeshId.SPIRE_0, MeshId.SPIRE_1, MeshId.SPIRE_2)
         val SAUCERS = arrayOf(MeshId.SAUCER_0, MeshId.SAUCER_1, MeshId.SAUCER_2, MeshId.SAUCER_3)
         val MARS_JETS = arrayOf(MeshId.MARS_JET_0, MeshId.MARS_JET_1, MeshId.MARS_JET_2)
+        val SEA_STACKS = arrayOf(MeshId.SEASTACK_0, MeshId.SEASTACK_1, MeshId.SEASTACK_2)
+        val SHIPS = arrayOf(MeshId.SHIP_0, MeshId.SHIP_1, MeshId.SHIP_2)
+        val FLOCKS = arrayOf(MeshId.FLOCK_0, MeshId.FLOCK_1, MeshId.FLOCK_2, MeshId.FLOCK_3)
+        val SEAPLANES = arrayOf(MeshId.SEAPLANE_0, MeshId.SEAPLANE_1, MeshId.SEAPLANE_2)
+        val MINES = arrayOf(MeshId.MINE_0, MeshId.MINE_1)
+        val JELLIES = arrayOf(MeshId.JELLY_0, MeshId.JELLY_1)
+        val SHARKS = arrayOf(MeshId.SHARK_0, MeshId.SHARK_1, MeshId.MANTA)
+        val CRABS = arrayOf(MeshId.CRAB_0, MeshId.CRAB_1)
+        val SUB_CARS = arrayOf(MeshId.SUBCAR_0, MeshId.SUBCAR_1, MeshId.SUBCAR_2)
+        val SUB_HAULERS = arrayOf(MeshId.SUBHAULER_0, MeshId.SUBHAULER_1, MeshId.SUBHAULER_2)
+        val SUB_VANS = arrayOf(MeshId.SUBVAN_0, MeshId.SUBVAN_1, MeshId.SUBVAN_2)
     }
 }

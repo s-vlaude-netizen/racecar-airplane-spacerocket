@@ -56,6 +56,8 @@ uniform float uFogDensity;
 uniform vec4 uTint;
 uniform vec4 uMat; // x: specular strength, y: shininess, z: emissive 0..1, w: fog scale
 uniform vec4 uRim; // rgb: rim colour, a: rim power (0 = off)
+uniform vec4 uLamp; // a point light: xyz position, w radius (0 = none): the vehicle's lamps in the dark
+uniform vec3 uLampCol;
 out vec4 outColor;
 void main() {
     vec3 n = normalize(vNormal);
@@ -64,6 +66,12 @@ void main() {
     float ndl = max(dot(n, uSunDir), 0.0);
     vec3 amb = mix(uAmbGround, uAmbSky, n.y * 0.5 + 0.5);
     vec3 lit = base * (amb + uSunColor * ndl);
+    if (uLamp.w > 0.0) {
+        vec3 toL = uLamp.xyz - vWorld;
+        float dl = length(toL);
+        float att = 1.0 - smoothstep(0.0, uLamp.w, dl);
+        lit += base * uLampCol * (0.25 + 0.75 * max(dot(n, toL / max(dl, 0.001)), 0.0)) * att * att;
+    }
     if (uMat.x > 0.0) {
         vec3 h = normalize(uSunDir + toCam);
         float s = pow(max(dot(n, h), 0.0), uMat.y) * uMat.x;
@@ -177,7 +185,8 @@ $BEND
 uniform vec4 uGrid;   // x: cell size, y: columns, z: rows behind the camera, w: world row index of local row 0
 uniform float uSlide; // shift along +z (0..cell) keeping vertices anchored to the world
 uniform vec4 uTer;    // x: ground y, y: amplitude, z: flat corridor half width, w: style (0 land, 1 cloud/dust deck, 2 moon)
-uniform float uWorld; // 0 Earth, 1 Mars: the land is rolling green hills or terraced red mesas; the moon is the Moon or Phobos
+uniform float uWorld; // 0 Earth, 1 Mars: the land is rolling green hills or terraced red mesas; the moon is the Moon or Phobos; 2 the ocean
+uniform float uTime;  // seconds: the waves move
 uniform vec4 uNear;   // a coarse grid drawn under a finer one: x its half width, y its far edge z, z its near edge z, w how far to sink (0 = not under one)
 uniform float uRange; // 0..1: how far the Moon's mountain ranges have risen
 out vec3 vWorld;
@@ -266,8 +275,29 @@ float landHeight(vec2 xs) {
     if (uWorld > 0.5) return marsHeight(xs);
     return grassHeight(xs);
 }
+// The ocean (uWorld = 2): style 0 is the sea seen from above and style 2 the same surface seen from below (waves; uTer.y is their
+// height), style 1 the seabed (a smooth floor around the route with rock walls rising on both sides).
+float waves(vec2 p) {
+    float t = uTime;
+    float h = sin(dot(p, vec2(0.044, 0.021)) + t * 1.05) * 0.62;
+    h += sin(dot(p, vec2(-0.031, 0.058)) + t * 1.40 + 1.7) * 0.42;
+    h += sin(dot(p, vec2(0.082, 0.071)) + t * 1.90 + 4.1) * 0.24;
+    h += sin(dot(p, vec2(-0.096, 0.052)) + t * 2.30 + 2.2) * 0.14;
+    return h * uTer.y;
+}
+float seabedHeight(vec2 xs) {
+    float ax = abs(xs.x);
+    float valley = smoothstep(uTer.z, uTer.z + 110.0, ax);
+    float field = fbm(xs * 0.007 + 31.0);
+    float ridge = 1.0 - abs(fbm(xs * 0.0045 + 7.0) * 2.0 - 1.0);
+    float h = valley * (field * 40.0 + ridge * ridge * 55.0);
+    h += (fbm(xs * 0.03 + 3.0) - 0.5) * 5.0 * smoothstep(uTer.z - 4.0, uTer.z + 20.0, ax);
+    h += (fbm(xs * 0.06) - 0.5) * 0.9 * smoothstep(uTer.z - 2.0, uTer.z + 8.0, ax);
+    return h;
+}
 float terrainHeight(vec2 xs) {
     float st = uTer.w;
+    if (uWorld > 1.5) return (st > 0.5 && st < 1.5) ? seabedHeight(xs) : waves(xs);
     if (st <= 0.0) return landHeight(xs);
     if (st < 1.0) return mix(landHeight(xs), cloudHeight(xs), st);
     if (st < 2.0) return mix(cloudHeight(xs), moonHeight(xs), st - 1.0);
@@ -309,7 +339,10 @@ uniform vec3 uFogColor;
 uniform float uFogDensity;
 uniform vec4 uTer;    // x: ground y, y: amplitude, z: corridor half width, w: style
 uniform vec4 uTerCol; // rgb: tint multiplier, a: unused
-uniform float uWorld; // 0 Earth, 1 Mars
+uniform float uWorld; // 0 Earth, 1 Mars, 2 the ocean
+uniform float uTime;
+uniform vec4 uLamp;
+uniform vec3 uLampCol;
 out vec4 outColor;
 
 float hash12(vec2 p) {
@@ -325,9 +358,63 @@ float vnoise(vec2 p) {
                mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
+// The ocean: the sea seen from above (style 0: deep blue with sun glints, sky reflections at grazing angles and foam on the
+// crests), the seabed (style 1: silt, rock and algae) and the underside of the surface seen from below (style 2: moving caustics).
+vec3 oceanColor(vec3 n) {
+    float st = uTer.w;
+    float blotch = vnoise(vWorld.xz * 0.045);
+    vec3 V = normalize(uCamPos - vWorld);
+    vec3 amb = mix(uAmbGround, uAmbSky, n.y * 0.5 + 0.5);
+    float ndl = max(dot(n, uSunDir), 0.0);
+    if (st < 0.5) {
+        float h = vWorld.y - uTer.x;
+        vec3 deepC = vec3(0.015, 0.20, 0.38);
+        vec3 shallowC = vec3(0.04, 0.46, 0.60);
+        vec3 water = mix(deepC, shallowC, clamp(smoothstep(-0.6, 1.0, h) * 0.8 + blotch * 0.25, 0.0, 1.0));
+        vec3 lit = water * (amb * 0.9 + uSunColor * ndl * 0.55);
+        float glint = pow(max(dot(reflect(-uSunDir, n), V), 0.0), 72.0);
+        lit += uSunColor * glint * 1.1;
+        float fres = pow(1.0 - max(dot(n, V), 0.0), 3.0);
+        lit = mix(lit, uFogColor, clamp(fres * 0.65, 0.0, 0.85));
+        float foam = smoothstep(0.55, 1.05, h) * smoothstep(0.50, 0.74, vnoise(vWorld.xz * 0.55 + vec2(0.0, uTime * 0.5)));
+        return mix(lit, vec3(0.95, 0.98, 1.0), clamp(foam, 0.0, 1.0) * 0.75);
+    }
+    if (st < 1.5) {
+        float hn = clamp((vWorld.y - uTer.x) / 55.0, 0.0, 1.5);
+        float speck = 0.5;
+        if (vDist < 170.0) speck = vnoise(vWorld.xz * 0.35);
+        vec3 sand = mix(vec3(0.46, 0.52, 0.50), vec3(0.62, 0.64, 0.56), blotch) * (0.92 + 0.16 * speck);
+        vec3 rockC = mix(vec3(0.14, 0.22, 0.26), vec3(0.24, 0.34, 0.34), blotch);
+        float steep = 1.0 - smoothstep(0.55, 0.9, n.y);
+        float rockMix = clamp(smoothstep(0.10, 0.45, hn + (blotch - 0.5) * 0.2) + steep * 0.8, 0.0, 1.0);
+        vec3 col = mix(sand, rockC, rockMix);
+        col = mix(col, vec3(0.10, 0.36, 0.30), rockMix * smoothstep(0.55, 0.8, vnoise(vWorld.xz * 0.11 + 5.0)) * 0.55);
+        col *= uTerCol.rgb;
+        vec3 lit = col * (amb + uSunColor * ndl);
+        if (uLamp.w > 0.0) {
+            vec3 toL = uLamp.xyz - vWorld;
+            float dl = length(toL);
+            float att = 1.0 - smoothstep(0.0, uLamp.w, dl);
+            lit += col * uLampCol * (0.25 + 0.75 * max(dot(n, toL / max(dl, 0.001)), 0.0)) * att * att;
+        }
+        return lit;
+    }
+    float t = uTime;
+    float c1 = sin(vWorld.x * 0.33 + t * 1.2 + sin(vWorld.z * 0.19 + t * 0.6) * 2.2);
+    float c2 = sin(vWorld.z * 0.29 - t * 0.9 + sin(vWorld.x * 0.17 - t * 0.4) * 2.0);
+    vec3 col = mix(vec3(0.07, 0.34, 0.50), vec3(0.62, 0.95, 0.98), smoothstep(-0.15, 0.85, c1 * c2));
+    float overhead = clamp(dot(normalize(vWorld - uCamPos), vec3(0.0, 1.0, 0.0)), 0.0, 1.0);
+    return col * (0.55 + 0.65 * overhead) * uTerCol.rgb;
+}
+
 void main() {
     vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
     if (n.y < 0.0) n = -n;
+    if (uWorld > 1.5) {
+        float fdo = vDist * uFogDensity;
+        outColor = vec4(mix(oceanColor(n), uFogColor, clamp(1.0 - exp(-fdo * fdo), 0.0, 1.0)), 1.0);
+        return;
+    }
     float st = uTer.w;
     float amp = mix(max(uTer.y, 1.0), 30.0, clamp(st, 0.0, 1.0));
     float hn = clamp((vWorld.y - uTer.x) / amp, 0.0, 1.5);

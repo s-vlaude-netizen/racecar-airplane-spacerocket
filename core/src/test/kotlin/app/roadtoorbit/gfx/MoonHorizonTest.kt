@@ -59,7 +59,7 @@ class MoonHorizonTest {
         val lib = MeshLibrary()
         val near = MoonTerrain.NEAR_COLS * MoonTerrain.NEAR_ROWS * 6
         val far = MoonTerrain.FAR_COLS * MoonTerrain.FAR_ROWS * 6
-        for (level in Levels.ALL) {
+        for (level in Levels.ALL.filter { it.finale == app.roadtoorbit.game.Finale.LANDING }) { // the ocean has no moon
             val gl = CountingGles()
             val scene = SceneRenderer(gl, lib)
             scene.resize(1600, 740)

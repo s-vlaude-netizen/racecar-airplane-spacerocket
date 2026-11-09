@@ -61,6 +61,9 @@ class Entity {
     /** Position y is relative to the terrain, which sinks as the vehicle climbs. */
     var groundBound = false
 
+    /** With [groundBound]: stands on the sea surface instead of on the ground below it (the ocean level has both). */
+    var onSurface = false
+
     var damage = 1
     var slowdown = 0f
 
@@ -88,6 +91,7 @@ class Entity {
         radius = 0f; hx = 0f; hy = 0f; hz = 0f
         parallax = 1f
         groundBound = false
+        onSurface = false
         damage = 1
         slowdown = 0f
         alive = true

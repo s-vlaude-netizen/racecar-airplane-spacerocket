@@ -62,7 +62,7 @@ class CameraRig {
         }
         c.rollDeg = roll
         c.near = 0.6f
-        c.far = if (g.look.altitude > 0.9f || g.phase == Phase.FINALE || g.phase == Phase.VICTORY) 26000f else 3000f
+        c.far = if (g.level.world != app.roadtoorbit.game.World.OCEAN && (g.look.altitude > 0.9f || g.phase == Phase.FINALE || g.phase == Phase.VICTORY)) 26000f else 3000f
         c.update()
     }
 
@@ -119,7 +119,35 @@ class CameraRig {
         roll = 0f
     }
 
+    /** A drive that has reached its destination: the camera starts behind the car and swings round to a low view from the side, with the city behind it. */
+    private fun arrivalShot(g: Game) {
+        val c = camera
+        val p = g.player
+        val swing = Mathx.smoother((g.finaleT - 0.5f) / 6.5f)
+        val az = swing * 1.1f + (if (g.phase == Phase.VICTORY) 0.06f * sin(g.clock * 0.4f) else 0f)
+        val r = Mathx.lerp(14f, 9.5f, swing)
+        c.ex = sin(az) * r
+        c.ez = cos(az) * r
+        c.ey = Mathx.lerp(4.6f, 2.0f, swing)
+        c.tx = 0f
+        c.ty = p.y + 0.9f
+        c.tz = Mathx.lerp(-8f, -3f, swing)
+        c.fovY = Mathx.lerp(64f, 52f, swing)
+        if (g.phase == Phase.VICTORY) {
+            // slide the camera left so the car stands on the right, beside the results panel
+            val d = -4.2f * Mathx.smoother(g.phaseTime / 1.4f)
+            val rx = cos(az); val rz = -sin(az)
+            c.ex += rx * d; c.ez += rz * d; c.tx += rx * d; c.tz += rz * d
+        }
+        roll = Mathx.damp(roll, 0f, 3f, 0.016f)
+        shake(g.shake, g.clock)
+    }
+
     private fun finaleShot(g: Game) {
+        if (g.level.finale == app.roadtoorbit.game.Finale.ARRIVAL) {
+            arrivalShot(g)
+            return
+        }
         val c = camera
         val p = g.player
         val t = g.finaleT
