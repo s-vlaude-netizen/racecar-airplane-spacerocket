@@ -96,9 +96,9 @@ object Levels {
         ),
         destination = "ATLANTIS",
         destinationKm = 10.9f,
-        startDifficulty = floatArrayOf(0.20f, 0.34f, 0.46f),
+        startDifficulty = floatArrayOf(0.26f, 0.38f, 0.12f),
         parSeconds = 350f,
-        starScores = intArrayOf(11500, 18500, 25500),
+        starScores = intArrayOf(9500, 16000, 22000),
         finale = Finale.ARRIVAL,
     )
 
