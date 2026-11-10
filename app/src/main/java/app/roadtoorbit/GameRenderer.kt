@@ -30,7 +30,11 @@ class GameRenderer(
         it.level = Levels[prefs.level]
         it.difficulty = Difficulty.values()[prefs.difficulty]
         it.bestScore = prefs.best(it.level.index, it.difficulty)
+        it.bestMillis = prefs.bestMillis(it.level.index, it.difficulty)
     }
+
+    /** Offers the player's finish times to the online leaderboard, when the build has one and the player is signed in. */
+    val boardSync = BoardSync(prefs) { bridge.leaderboards }
 
     private val library = MeshLibrary().also { lib ->
         // generate all procedural geometry off the GL thread so nothing hitches mid-game
@@ -144,9 +148,7 @@ class GameRenderer(
                 else if (sfx == Sfx.TRANSFORM || sfx == Sfx.TOUCHDOWN) haptic(false)
                 sfx = game.pollSfx()
             }
-            if (game.phase == Phase.VICTORY || game.phase == Phase.GAME_OVER) {
-                if (game.bestScore > prefs.best(game.level.index, game.difficulty)) prefs.setBest(game.level.index, game.difficulty, game.bestScore)
-            }
+            saveBests()
         }
         if (game.phase != lastPhase) {
             lastPhase = game.phase
@@ -212,7 +214,7 @@ class GameRenderer(
                 if (game.phase == Phase.MENU) {
                     game.difficulty = game.difficulty.next()
                     prefs.difficulty = game.difficulty.ordinal
-                    game.bestScore = prefs.best(game.level.index, game.difficulty)
+                    loadBests()
                     audio.play(Sfx.UI)
                 }
             }
@@ -220,7 +222,7 @@ class GameRenderer(
                 if (game.phase == Phase.MENU) {
                     game.level = Levels[(game.level.index + 1) % Levels.count]
                     prefs.level = game.level.index
-                    game.bestScore = prefs.best(game.level.index, game.difficulty)
+                    loadBests()
                     audio.play(Sfx.UI)
                 }
             }
@@ -231,7 +233,7 @@ class GameRenderer(
                     game.toMenu()
                     game.level = Levels[next]
                     prefs.level = next
-                    game.bestScore = prefs.best(next, game.difficulty)
+                    loadBests(next)
                     game.startRun()
                     bridge.paused = false
                     audio.play(Sfx.UI)
@@ -244,6 +246,29 @@ class GameRenderer(
                 audio.play(Sfx.UI)
             }
         }
+    }
+
+    /**
+     * Keeps what a finished run has beaten: the best score (also after a crash) and the best finish time (a win only), which is then offered
+     * to the online leaderboard if there is one. Called every frame, and does nothing once the new bests have been written.
+     */
+    internal fun saveBests() {
+        if (game.phase == Phase.VICTORY || game.phase == Phase.GAME_OVER) {
+            if (game.bestScore > prefs.best(game.level.index, game.difficulty)) prefs.setBest(game.level.index, game.difficulty, game.bestScore)
+        }
+        if (game.phase == Phase.VICTORY && game.newBestTime) {
+            val saved = prefs.bestMillis(game.level.index, game.difficulty)
+            if (saved <= 0L || game.bestMillis < saved) {
+                prefs.setBestMillis(game.level.index, game.difficulty, game.bestMillis)
+                boardSync.finished(game.level.index, game.difficulty, game.bestMillis)
+            }
+        }
+    }
+
+    /** The player's best score and best time for the chosen level (or [level]) and difficulty, which the results screen and the menu compare with. */
+    private fun loadBests(level: Int = game.level.index) {
+        game.bestScore = prefs.best(level, game.difficulty)
+        game.bestMillis = prefs.bestMillis(level, game.difficulty)
     }
 
     /** Called from the UI thread's onPause so the GL thread stops making noise. */

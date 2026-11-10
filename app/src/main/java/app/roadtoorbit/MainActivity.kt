@@ -15,6 +15,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import app.roadtoorbit.audio.AudioEngine
 import app.roadtoorbit.game.Phase
+import app.roadtoorbit.online.OnlineFlavor
 import kotlin.math.abs
 
 /** Hosts the 3D view and the HUD overlay; owns the lifecycle, keyboard / gamepad input and audio. */
@@ -57,6 +58,7 @@ class MainActivity : Activity() {
             musicOn = prefs.musicOn
             tiltOn = prefs.tiltOn
             crashReport = CrashReporter.pending(this@MainActivity) // what the last session left behind, if anything
+            leaderboards = OnlineFlavor.leaderboards(this@MainActivity) // none in the plain build; the player's Play Games boards, if usable, in the Google Play build
         }
         audio = AudioEngine(applicationContext, bridge.soundOn, bridge.musicOn)
         renderer = GameRenderer(
@@ -68,6 +70,8 @@ class MainActivity : Activity() {
             },
             applyRenderScale = { scale -> glView.post { setRenderScale(scale) } },
         )
+        // a time that was earned while the boards were not usable (not signed in yet) goes there as soon as they are
+        bridge.leaderboards.onAvailable = { renderer.boardSync.syncPending() }
         glView = GameView(this, renderer)
         glView.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
             // (re)apply a previously learned lower resolution once we know the view size
@@ -91,6 +95,7 @@ class MainActivity : Activity() {
         glView.onResume()
         tilt.start()
         enterImmersive()
+        bridge.leaderboards.onResume()
     }
 
     override fun onPause() {
@@ -101,10 +106,12 @@ class MainActivity : Activity() {
         tilt.stop()
         glView.onPause() // returns once the render thread has stopped, so nothing can restart the sound after this
         renderer.onAppPaused()
+        bridge.leaderboards.onPause()
         super.onPause()
     }
 
     override fun onDestroy() {
+        bridge.leaderboards.onDestroy()
         audio.release()
         super.onDestroy()
     }

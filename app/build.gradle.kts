@@ -13,8 +13,18 @@ android {
         applicationId = "app.roadtoorbit"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.4.0"
+        versionCode = 14
+        versionName = "1.5.0"
+    }
+
+    // Two builds of the same game. "plain" is the APK on GitHub: no Google libraries, no permissions, no network, it works on any
+    // device (LineageOS without Google Play services included). "google" is the Google Play build: the same game plus an optional
+    // Play Games leaderboard of finish times, and every line of Google code lives in the :playgames module that only this flavor
+    // depends on. Both have the same application id, so either installs over the other if they are signed with the same key.
+    flavorDimensions += "store"
+    productFlavors {
+        create("plain") { dimension = "store" }
+        create("google") { dimension = "store" }
     }
 
     // A fixed, openly committed debug-style key so every build (local or CI) is signed identically
@@ -66,7 +76,27 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    "googleImplementation"(project(":playgames"))
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
 }
+
+// The plain flavor is the GitHub APK and must stay free of Google: not the :playgames module and none of Google's libraries (checked on every
+// classpath the flavor is built and tested with; PlainFlavorTest looks at the classes themselves, and CI looks into the finished APK).
+val checkPlainHasNoGoogle by tasks.registering {
+    group = "verification"
+    description = "Fails when the plain flavor depends on the :playgames module or on a Google library"
+    val classpaths = listOf("plainDebugRuntimeClasspath", "plainReleaseRuntimeClasspath", "plainDebugUnitTestRuntimeClasspath")
+    doLast {
+        for (name in classpaths) {
+            val components = configurations.getByName(name).incoming.resolutionResult.allComponents.map { it.id.displayName }
+            val google = components.filter {
+                it.startsWith("com.google.android.gms") || it.startsWith("com.google.android.play") ||
+                    it.startsWith("com.google.firebase") || it.contains("playgames")
+            }
+            check(google.isEmpty()) { "the plain flavor ($name) must not contain Google code, but it has: $google" }
+        }
+    }
+}
+tasks.matching { it.name == "check" }.configureEach { dependsOn(checkPlainHasNoGoogle) }

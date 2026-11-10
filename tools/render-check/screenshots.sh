@@ -15,6 +15,6 @@ cd "$root"
 
 ./gradlew :core:journeyTrace -q -DtraceLevel="$level"
 node tools/render-check/render.mjs core/build/traces/journey.bin "$out/journey" all
-./gradlew :app:testDebugUnitTest --tests '*HudOverlayTest' --rerun -q
+./gradlew :app:testPlainDebugUnitTest --tests '*HudOverlayTest' --rerun -q
 python3 tools/render-check/compose.py "$out/journey" app/build/hud core/build/traces/journey.txt "$out/shots"
 echo "screenshots written to $out/shots"

@@ -91,6 +91,10 @@ artifacts) and install it on an Android 8.0+ phone (sideload: allow "install unk
 browser/file manager). It needs OpenGL ES 3.0, which every phone from the last decade has. The game runs
 in landscape.
 
+That APK is the **plain** build: no Google libraries, no permissions and no network access, so it works on every device, LineageOS
+without Google Play services included. A second build, **google**, is meant for Google Play: the same game plus an optional Play Games
+leaderboard of finish times (see [Leaderboard](#leaderboard-google-play-build)); the workflow uploads it as `transformer-triathlon-play-apk`.
+
 The game used to be called *Road to Orbit*. The technical ids (the package `app.roadtoorbit`, the settings file and the
 signing key) keep the old name on purpose, so that the update installs over an older version and keeps its saved scores
 and settings.
@@ -135,6 +139,7 @@ the gate of Atlantis, and the game ends with a landing on an island.
 * **Sound and music** can be switched off separately on the menu. There are thirteen music loops: the menu, and a race (or sea), a flight (or dive), a space (or seabed) and a finale loop for each level (Mars and The Deep are in other keys and moods). Homecoming has no loops
   of its own: the music follows the form you are in (the seabed loop for the car, the dive loop for the rocket, the sea loop for
   the plane), and the landing on the island has the triumphant finale loop of the Moon.
+* **Times and the leaderboard** – the results screen shows your finish time (the run clock from GO to the last gate: the countdown, the pause menu and the finale are not counted, but the time of a lost attempt is, because it passed) next to your best for the level and difficulty, and the menu shows the best time next to the best score. Best times are kept on the device in every build. In the Google Play build, when Google Play services are there and you are signed in to Play Games, the menu and the results also offer a **LEADERBOARD** button for the level and difficulty you chose; everywhere else the button is simply not there.
 * **Keyboard / gamepad** also work: arrows or WASD (D-pad) steer, Shift / Space (R1, B) boost, T (X) transforms, Enter (A) starts, resumes or retries, L (Y) picks the level on the menu and goes on to the next one after a win, P / Esc (Start) pauses.
 
 A full run takes about three minutes.
@@ -142,15 +147,19 @@ A full run takes about three minutes.
 ## Building
 
 ```bash
-./gradlew :core:test :app:testDebugUnitTest   # game logic, bot playthroughs, renderer, audio synth, HUD tests
-./gradlew :app:assembleRelease                # → app/build/outputs/apk/release/app-release.apk
-./gradlew :app:installDebug                   # install on a connected device
+./gradlew :core:test :playgames:testDebugUnitTest :app:testPlainDebugUnitTest :app:testGoogleDebugUnitTest
+                                              # game logic, bot playthroughs, renderer, audio synth, HUD, the Play Games module, both builds
+./gradlew :app:checkPlainHasNoGoogle          # the plain build must not depend on the Play Games module or on any Google library
+./gradlew :app:assemblePlainRelease           # → app/build/outputs/apk/plain/release/app-plain-release.apk  (the APK on GitHub)
+./gradlew :app:assembleGoogleRelease          # → app/build/outputs/apk/google/release/app-google-release.apk (the Google Play build)
+./gradlew :app:installPlainDebug              # install on a connected device (installGoogleDebug for the other build)
 ```
 
 Requirements: JDK 17+ and the Android SDK (platform 35). Open the folder in Android Studio and press ▶ to
 run on a device or emulator. Builds are signed with the committed, intentionally public key in
 `keystore/` so every build can be installed over the previous one (this is not a Play Store key).
-The GitHub Actions workflow (`.github/workflows/android.yml`) runs the tests and uploads the APK on every push.
+The GitHub Actions workflow (`.github/workflows/android.yml`) runs the tests, builds both flavors, checks the plain APK for Google code
+and permissions, and uploads both APKs on every push.
 
 ## How it is built
 
@@ -159,7 +168,11 @@ core/   pure Kotlin/JVM – no Android dependencies
   game/   deterministic simulation: levels and legs, spawner patterns, collisions, scoring, transformations, finale
   gfx/    OpenGL ES 3.0 renderer behind a tiny `Gles` interface, procedural meshes, shaders, camera
   audio/  procedural sound-effect and music synthesiser (22 kHz PCM)
-app/    thin Android shell: GLSurfaceView, Canvas HUD/menus, touch/tilt/keyboard input, audio playback
+  online/ the Leaderboards interface the game knows (and NoLeaderboards, the offline game)
+app/    thin Android shell: GLSurfaceView, Canvas HUD/menus, touch/tilt/keyboard input, audio playback; two flavors:
+          plain   the APK on GitHub, no Google code
+          google  the Google Play build, depends on :playgames
+playgames/  the Play Games leaderboard: the only code in the project that knows Google's libraries
 tools/render-check/   headless screenshots of the renderer and the HUD (see below)
 ```
 
@@ -225,6 +238,12 @@ Some of the techniques:
   `./gradlew :core:test -Dchaos=heavy` runs 120 sessions of 15,000 frames (about 1.8 million frames).
 * **Memory budgets** fail the build if the heap grows over a long play session, if a frame allocates more than a
   few KB, or if start-up work (meshes, sound effects, one music loop) needs more than a fraction of what a phone allows.
+* **The leaderboard** (`FinishTimeTest`, `LeaderboardUiTest`, `PlayGamesLeaderboardsTest`, `PlainFlavorTest`, `GoogleFlavorTest`):
+  what counts as a finish time and how it is written, that the best time is only ever improved and handed to a board once (and later,
+  when the player signs in afterwards), that the buttons only exist where a board can be shown, and that the Play Games code stays quiet
+  when Google Play services are missing, the game is not set up, the player is not signed in or Google's code throws (a fake stands in for
+  Google; one test runs the real backend on a device without Google Play services). `PlainFlavorTest` checks that none of Google's
+  classes are in the plain build, `checkPlainHasNoGoogle` that no Google library is on its classpath, and CI looks into the finished APK.
 * `app` has Robolectric tests that draw every HUD and menu screen to PNGs (`app/build/hud`), fuzz the HUD with random
   states and screen sizes and the touch handling with thousands of random multi-touch events (malformed sequences
   included), run the activity through random lifecycle changes, and drive the real audio engine frame by frame.
@@ -246,6 +265,36 @@ Some of the techniques:
   side and rear, in the same way; `MeshGalleryTest` lays the Martian models out on the Martian ground, and `GalleryKit` is a small harness for looking at any
   set of models in daylight, at sea, in the deep or on the seabed.
 
+## Leaderboard (Google Play build)
+
+The game is complete offline and the best times are always kept on the device. The leaderboard is an extra of the **google** build:
+one Play Games leaderboard per level and difficulty (a run on Hard is faster than one on Easy, so their times cannot share a ranking),
+ranked by finish time. It is detected at run time and hides itself without an error whenever it cannot work: no Google Play services
+(LineageOS, microG, a tablet without Google), a game that is not set up in the Play Console, a player who is not signed in to Play Games,
+no network (Google's service queues the time and sends it later), or any exception in Google's code (then it stays off for the session).
+The plain build contains none of it. Neither build declares any permission: the Play Games calls go through Google Play services.
+
+Everything that knows Google's libraries is in the `playgames/` module (`PlayGamesLeaderboards`, a thin `GamesBackend` around Google's
+classes, and `BoardIds` for the ids), behind the `Leaderboards` interface of `core`. The Play Games SDK would start itself when the process
+starts, on every device; the module removes that auto-start from the manifest and starts the SDK by hand only when the services are there and
+the ids are entered. Scores are sent by the app, so a modified app can send any time (Play Games has no server-side check); the game only
+refuses times that no run can have (under 30 seconds).
+
+**To switch it on** (this needs your Play Console, so nothing is entered in the repository):
+
+1. Play Console → your app → *Play Games Services* → *Setup and management* → *Configuration*: create the game project, and under
+   *Credentials* add an Android credential for the package `app.roadtoorbit` with the SHA-1 of the key the build is signed with. For the
+   release that is the SHA-1 of the Play app signing key (the Play Console shows it under *App integrity*). The committed key
+   (`79:12:B7:75:6E:22:83:A9:01:82:E4:E2:47:76:04:69:9B:AB:04:39`) is public: register it only while you test, and remove it before the
+   leaderboards are real, because Play Games accepts scores from any app signed with a registered key, and anybody can sign with this one.
+2. Create the leaderboards: one for each level and difficulty (12), score format *Time*, order *Smaller is better*. The game sends the time in
+   milliseconds. Leave out the ones you do not want; a level and difficulty without a board has no button.
+3. Paste the *Application ID* and the leaderboard ids into `playgames/src/main/res/values/play_games_ids.xml` (`pg_app_id`, `pg_board_<level>_<difficulty>`)
+   and build the **google** flavor. Add yourself as a tester in the Play Console until the game services configuration is published.
+
+A new level needs its three ids in that file and in `BoardIds` (a test reminds you). The leaderboard shows the player's Play Games name and
+picture, which belongs in the data safety form of the store listing.
+
 ## If something goes wrong
 
 The game saves a small report when it crashes (and when it hits an error it can recover from by returning to the menu):
@@ -255,7 +304,7 @@ with an error screen, that screen shows the same report. (Logcat has the full tr
 
 ## Status
 
-Developed and verified in a headless cloud environment: the code compiles, all tests pass (162 in `core`, 50 in `app`), Android
+Developed and verified in a headless cloud environment: the code compiles, all tests pass (170 in `core`, 17 in the Play Games module, 62 in `app` for the plain build and 61 for the Google Play build), Android
 lint reports no errors (a few warnings, mostly the deliberate fixed-landscape, non-resizable activity), and the rendered frames
 were inspected. The first run on a real phone found an out-of-memory crash (the music was re-requested on every frame in
 the menu and on the results screens, each request synthesising a whole loop on a new thread); that is fixed and has regression
@@ -265,4 +314,6 @@ to those before the change). Homecoming, the fourth level, is mostly built from 
 levels pass the same audit, chaos, memory and strict-GL tests. Things that only real hardware
 can confirm: the frame rate on actual GPUs (software GL was used to render the frames), tilt steering, touch feel, how the
 synthesised audio sounds (it was checked numerically and as spectrograms, not by ear), and how hard Mars and Homecoming feel to people
-(their difficulty was measured with test pilots, see `BalanceReportTest`, not with people).
+(their difficulty was measured with test pilots, see `BalanceReportTest`, not with people). The Play Games leaderboard is tested against a
+fake of Google's API and on a device without Google Play services; it has not talked to the real service (that needs a game set up in
+your Play Console), so signing in, sending a time and opening a board are unproven until you try them on a phone with Google Play.

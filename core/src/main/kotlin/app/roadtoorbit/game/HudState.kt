@@ -59,6 +59,11 @@ class HudState {
 
     var stars = 0
     var newBest = false
+
+    /** The time this run took (ms, see [FinishTime]; 0 until a level is finished), the player's best for the level and difficulty (0 = none), and whether this is it. */
+    var finishMillis = 0L
+    var bestMillis = 0L
+    var newBestTime = false
     var breakdownBase = 0
     var breakdownHealth = 0
     var breakdownTime = 0
@@ -136,6 +141,9 @@ internal fun Game.fillHudInternal(h: HudState) {
     h.shake = shake
     h.stars = stars
     h.newBest = newBest
+    h.finishMillis = finishMillis
+    h.bestMillis = bestMillis
+    h.newBestTime = newBestTime
     val bd = lastScoreBreakdown
     h.breakdownBase = if (bd.size >= 3) bd[0] else 0
     h.breakdownHealth = if (bd.size >= 3) bd[1] else 0

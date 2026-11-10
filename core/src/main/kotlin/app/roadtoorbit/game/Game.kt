@@ -95,6 +95,17 @@ class Game(seed: Long = 1L) {
 
     var bestScore = 0
 
+    /** The time this run took to finish the level (ms, see [FinishTime]); 0 until the level is finished. */
+    var finishMillis = 0L
+        private set
+
+    /** The best finish time of the player for this level and difficulty (ms, 0 = none yet): loaded by the host, improved by a faster finish. */
+    var bestMillis = 0L
+
+    /** Set when this finish is faster than [bestMillis] was (and a real time at all). */
+    var newBestTime = false
+        private set
+
     /**
      * Chosen on the menu; applies from the next [startRun]. Changes outside the menu are ignored, because a run
      * in progress (shields, speed, spacing) must never see its rules change underneath it - queued taps can
@@ -190,6 +201,7 @@ class Game(seed: Long = 1L) {
         score = 0; coins = 0; rings = 0; ringStreak = 0; nearMisses = 0; runTime = 0f
         scoreAcc = 0f
         newBest = false; stars = 0
+        finishMillis = 0L; newBestTime = false
         travelled = 0.0
         hazardsPlaced = 0; hazardsDropped = 0
         checkpoint = Checkpoint(0, 0, 0, 0)
@@ -204,6 +216,7 @@ class Game(seed: Long = 1L) {
         nearMisses = checkpoint.nearMisses; ringStreak = 0
         scoreAcc = 0f
         newBest = false
+        finishMillis = 0L; newBestTime = false
         particles.clear()
         popups.clear()
         beginLeg(legIndex, 1.6f)
@@ -1163,6 +1176,9 @@ class Game(seed: Long = 1L) {
         stars = level.starScores.count { score >= scaled(it) }
         newBest = score > bestScore
         if (newBest) bestScore = score
+        finishMillis = FinishTime.millisOf(runTime)
+        newBestTime = FinishTime.isValid(finishMillis) && (bestMillis <= 0L || finishMillis < bestMillis)
+        if (newBestTime) bestMillis = finishMillis
         sfx(Sfx.VICTORY)
         popups.clear()
     }

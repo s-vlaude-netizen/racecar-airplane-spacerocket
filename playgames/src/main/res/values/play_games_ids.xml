@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Play Games Services ids of the Google Play build. Paste them in from the Play Console (Play Games Services > Setup and management >
+    Configuration, and each leaderboard's page). Nothing else needs to change.
+
+    While an id is empty the build works as it does without Google: an empty application id keeps Play Games switched off altogether, an empty
+    leaderboard id leaves that one board out (the LEADERBOARD buttons only show for a level and difficulty that has a board).
+-->
+<resources>
+    <!-- The "Application ID" of the Play Games Services project: digits only, e.g. 123456789012 -->
+    <string name="pg_app_id" translatable="false"></string>
+
+    <!--
+        One leaderboard per level and difficulty (the speed of a run depends on the difficulty, so their times cannot be ranked together).
+        In the Play Console: score format "Time", order "Smaller is better", the time is sent in milliseconds. The ids look like CgkIxxxxxxxxxxEAIQAQ.
+    -->
+    <string name="pg_board_moon_easy" translatable="false"></string>
+    <string name="pg_board_moon_normal" translatable="false"></string>
+    <string name="pg_board_moon_hard" translatable="false"></string>
+
+    <string name="pg_board_mars_easy" translatable="false"></string>
+    <string name="pg_board_mars_normal" translatable="false"></string>
+    <string name="pg_board_mars_hard" translatable="false"></string>
+
+    <string name="pg_board_deep_easy" translatable="false"></string>
+    <string name="pg_board_deep_normal" translatable="false"></string>
+    <string name="pg_board_deep_hard" translatable="false"></string>
+
+    <string name="pg_board_homecoming_easy" translatable="false"></string>
+    <string name="pg_board_homecoming_normal" translatable="false"></string>
+    <string name="pg_board_homecoming_hard" translatable="false"></string>
+</resources>

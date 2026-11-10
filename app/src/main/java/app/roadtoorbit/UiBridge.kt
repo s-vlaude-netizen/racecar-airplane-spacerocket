@@ -2,6 +2,8 @@ package app.roadtoorbit
 
 import app.roadtoorbit.game.GameInput
 import app.roadtoorbit.game.HudBuffer
+import app.roadtoorbit.online.Leaderboards
+import app.roadtoorbit.online.NoLeaderboards
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /** Things the UI can ask the game thread to do. */
@@ -20,6 +22,9 @@ class UiBridge {
     @Volatile var soundOn = true
     @Volatile var musicOn = true
     @Volatile var tiltOn = false
+
+    /** The online leaderboards, if this build has any and they are usable; the HUD offers them only while they say they can show a board. */
+    @Volatile var leaderboards: Leaderboards = NoLeaderboards
 
     /** True while a finger is on the on-screen stick (tilt steering then stands down). */
     @Volatile var stickActive = false

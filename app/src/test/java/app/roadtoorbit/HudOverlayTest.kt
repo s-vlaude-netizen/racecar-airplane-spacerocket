@@ -49,6 +49,7 @@ class HudOverlayTest {
         fun str(k: String) = p.getProperty(k) ?: ""
         fun int(k: String) = str(k).toIntOrNull() ?: 0
         fun flt(k: String) = str(k).toFloatOrNull() ?: 0f
+        fun lng(k: String) = str(k).toLongOrNull() ?: 0L
         fun bool(k: String) = str(k).toBoolean()
         s.phase = Phase.valueOf(str("phase")); s.legIndex = int("legIndex"); s.legName = str("legName"); s.legSubtitle = str("legSubtitle")
         s.levelIndex = int("levelIndex"); s.levelName = str("levelName"); s.nextLevelName = str("nextLevelName")
@@ -63,6 +64,7 @@ class HudOverlayTest {
         s.speedKmh = int("speedKmh"); s.altitudeKm = flt("altitudeKm"); s.runTime = flt("runTime")
         s.transformReady = bool("transformReady"); s.transforming = bool("transforming"); s.countdown = int("countdown")
         s.flash = flt("flash"); s.damageFlash = flt("damageFlash"); s.stars = int("stars"); s.newBest = bool("newBest")
+        s.finishMillis = lng("finishMillis"); s.bestMillis = lng("bestMillis"); s.newBestTime = bool("newBestTime")
         s.breakdownBase = int("breakdownBase"); s.breakdownHealth = int("breakdownHealth"); s.breakdownTime = int("breakdownTime")
         s.popupCount = int("popupCount").coerceAtMost(HudState.MAX_POPUPS)
         for (i in 0 until s.popupCount) {

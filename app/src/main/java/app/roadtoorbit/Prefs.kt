@@ -4,7 +4,7 @@ import android.content.Context
 import app.roadtoorbit.game.Difficulty
 import app.roadtoorbit.game.Levels
 
-/** Tiny SharedPreferences wrapper for the best score and settings. */
+/** Tiny SharedPreferences wrapper for the best scores, the best times and the settings. */
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("road_to_orbit", Context.MODE_PRIVATE)
 
@@ -28,6 +28,19 @@ class Prefs(context: Context) {
 
     fun setBest(level: Int, d: Difficulty, score: Int) =
         sp.edit().putInt(if (level <= 0) "best_${d.ordinal}" else "best_l${level + 1}_${d.ordinal}", score).apply()
+
+    /**
+     * Best finish time in milliseconds per level and difficulty (0 = no win yet), see [app.roadtoorbit.game.FinishTime]. Kept on the device
+     * whatever the build: the local best times do not need a network, an account or Google.
+     */
+    fun bestMillis(level: Int, d: Difficulty): Long = sp.getLong("time_${level}_${d.ordinal}", 0L)
+
+    fun setBestMillis(level: Int, d: Difficulty, millis: Long) = sp.edit().putLong("time_${level}_${d.ordinal}", millis).apply()
+
+    /** The best time that has been handed to an online leaderboard for the level and difficulty (0 = none), so that nothing is sent twice. */
+    fun sentMillis(level: Int, d: Difficulty): Long = sp.getLong("sent_${level}_${d.ordinal}", 0L)
+
+    fun setSentMillis(level: Int, d: Difficulty, millis: Long) = sp.edit().putLong("sent_${level}_${d.ordinal}", millis).apply()
 
     var soundOn: Boolean
         get() = sp.getBoolean("sound", true)

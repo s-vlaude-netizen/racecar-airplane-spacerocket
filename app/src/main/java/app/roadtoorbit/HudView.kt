@@ -14,6 +14,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
+import app.roadtoorbit.game.FinishTime
 import app.roadtoorbit.game.HudState
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.game.Tuning
@@ -77,13 +78,21 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     private var pressedButton = -1
     private var downX = 0f
     private var downY = 0f
-    private val pills = Array(5) { RectF() }
+    private val pills = Array(6) { RectF() }
 
     // cached formatted numbers (avoid re-allocating strings every frame)
     private var scoreCache = -1
     private var scoreText = "0"
     private var bestCache = -1
     private var bestText = "0"
+    // the best score and best time line of the menu, and the time line of the results (rebuilt only when a number changes)
+    private var menuBestScore = -1
+    private var menuBestMillis = -1L
+    private var menuBestLine = ""
+    private var timeLineFinish = -1L
+    private var timeLineBest = -1L
+    private var timeLineNew = false
+    private var timeLine = ""
     private var speedCache = -1
     private var speedText = "0"
     private var altCache = -1f
@@ -508,7 +517,11 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
 
         if (s.bestScore > 0) {
             if (s.bestScore != bestCache) { bestCache = s.bestScore; bestText = String.format(Locale.US, "%,d", s.bestScore) }
-            label(c, "BEST  $bestText", cx, py + ph / 2 + 4.6f * u, 3.2f * u, Color.argb(230, 255, 224, 130), Paint.Align.CENTER, sans)
+            if (s.bestScore != menuBestScore || s.bestMillis != menuBestMillis) {
+                menuBestScore = s.bestScore; menuBestMillis = s.bestMillis
+                menuBestLine = if (FinishTime.isValid(s.bestMillis)) "BEST  $bestText   ·   BEST TIME  ${FinishTime.format(s.bestMillis)}" else "BEST  $bestText"
+            }
+            label(c, menuBestLine, cx, py + ph / 2 + 4.6f * u, 3.2f * u, Color.argb(230, 255, 224, 130), Paint.Align.CENTER, sans)
         }
         // level and difficulty selectors side by side
         val lw = 33f * u
@@ -550,6 +563,15 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         rect.set(w - m - insetR - pw2 - 4f * u, rowBottom - ph2, w - m - insetR, rowBottom)
         pills[2].set(rect)
         drawPill(c, rect, if (tiltOn) "TILT STEERING" else "TOUCH STEERING", tiltOn, 2)
+        // the leaderboard of the chosen level and difficulty, only where there is one to show (never in the plain build; in the Google Play
+        // build for a signed-in player and a board that is set up): otherwise there is no pill and nothing to tap
+        if (bridge.leaderboards.canShow(s.levelIndex, s.difficulty)) {
+            rect.set(w - m - insetR - pw2 - 4f * u, rowBottom - ph2 * 2 - 1.6f * u, w - m - insetR, rowBottom - ph2 - 1.6f * u)
+            pills[PILL_BOARD].set(rect)
+            drawPillColored(c, rect, "LEADERBOARD", Color.argb(200, 150, 100, 20), PILL_BOARD)
+        } else {
+            pills[PILL_BOARD].setEmpty()
+        }
     }
 
     private fun drawPill(c: Canvas, r: RectF, text: String, on: Boolean, index: Int) =
@@ -601,6 +623,18 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         for (i in 0 until 3) {
             iconStar(c, cx + (i - 1) * 10.5f * u, h * 0.31f, (if (i == 1) 5.4f else 4.4f) * u, i < s.stars)
         }
+        // the finish time (what the online leaderboards rank; the best time is kept on the device whatever the build)
+        if (FinishTime.isValid(s.finishMillis)) {
+            if (s.finishMillis != timeLineFinish || s.bestMillis != timeLineBest || s.newBestTime != timeLineNew) {
+                timeLineFinish = s.finishMillis; timeLineBest = s.bestMillis; timeLineNew = s.newBestTime
+                timeLine = "TIME  ${FinishTime.format(s.finishMillis)}" + when {
+                    s.newBestTime -> "   ·   NEW BEST TIME!"
+                    FinishTime.isValid(s.bestMillis) -> "   ·   BEST  ${FinishTime.format(s.bestMillis)}"
+                    else -> ""
+                }
+            }
+            label(c, timeLine, cx, h * 0.405f, 3.4f * u, if (s.newBestTime) Color.rgb(255, 224, 110) else Color.argb(235, 220, 230, 255), Paint.Align.CENTER, sans)
+        }
         val lineY = h * 0.45f
         val gap = 4.6f * u
         rows(c, cx, lineY, gap, arrayOf("JOURNEY", "HULL BONUS", "TIME BONUS"), intArrayOf(s.breakdownBase, s.breakdownHealth, s.breakdownTime))
@@ -608,11 +642,22 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         label(c, "TOTAL  $scoreText", cx, lineY + gap * 3 + 4f * u, 6.4f * u, Color.WHITE, Paint.Align.CENTER, sansItalic)
         if (s.newBest) label(c, "NEW BEST!", cx, lineY + gap * 3 + 10.2f * u, 3.6f * u, Color.rgb(255, 224, 110), Paint.Align.CENTER, sansItalic)
         beginButtons()
+        val board = bridge.leaderboards.canShow(s.levelIndex, s.difficulty) // a third button in the second row, only where there is a board to show
         if (s.nextLevelName.isNotEmpty()) {
             // the way on is the main button; playing the level again is the second choice
             addButton(BTN_NEXT_LEVEL, "NEXT LEVEL: ${s.nextLevelName}", true, h * 0.775f, widthU = 52f, heightU = 8f, centerX = cx)
-            addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", false, h * 0.89f, widthU = 31f, heightU = 7.2f, xOffsetU = -14.5f, centerX = cx)
-            addButton(BTN_MENU, "MAIN MENU", false, h * 0.89f, widthU = 25f, heightU = 7.2f, xOffsetU = 16.5f, centerX = cx)
+            if (board) {
+                addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", false, h * 0.89f, widthU = 26f, heightU = 7.2f, xOffsetU = -28.5f, centerX = cx)
+                addButton(BTN_MENU, "MAIN MENU", false, h * 0.89f, widthU = 23f, heightU = 7.2f, xOffsetU = -1.5f, centerX = cx)
+                addButton(BTN_BOARD, "LEADERBOARD", false, h * 0.89f, widthU = 29f, heightU = 7.2f, xOffsetU = 27f, centerX = cx)
+            } else {
+                addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", false, h * 0.89f, widthU = 31f, heightU = 7.2f, xOffsetU = -14.5f, centerX = cx)
+                addButton(BTN_MENU, "MAIN MENU", false, h * 0.89f, widthU = 25f, heightU = 7.2f, xOffsetU = 16.5f, centerX = cx)
+            }
+        } else if (board) {
+            addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", true, h * 0.86f, widthU = 26f, heightU = 8f, xOffsetU = -28.5f, centerX = cx)
+            addButton(BTN_MENU, "MAIN MENU", false, h * 0.86f, widthU = 23f, heightU = 8f, xOffsetU = -1.5f, centerX = cx)
+            addButton(BTN_BOARD, "LEADERBOARD", false, h * 0.86f, widthU = 29f, heightU = 8f, xOffsetU = 27f, centerX = cx)
         } else {
             addButton(BTN_PLAY_AGAIN, "PLAY AGAIN", true, h * 0.86f, widthU = 31f, heightU = 8f, xOffsetU = -16.5f, centerX = cx)
             addButton(BTN_MENU, "MAIN MENU", false, h * 0.86f, widthU = 25f, heightU = 8f, xOffsetU = 14.5f, centerX = cx)
@@ -955,6 +1000,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
             index == PILL_HIT + 2 -> { bridge.post(UiAction.TOGGLE_TILT); bridge.tiltRecalibrate = true }
             index == PILL_HIT + 3 -> bridge.post(UiAction.CYCLE_DIFFICULTY)
             index == PILL_HIT + 4 -> bridge.post(UiAction.CYCLE_LEVEL)
+            index == PILL_HIT + PILL_BOARD -> bridge.leaderboards.show(s.levelIndex, s.difficulty)
             index in 0 until buttonCount -> when (buttons[index].id) {
                 BTN_RESUME -> bridge.paused = false
                 BTN_RESTART -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.PLAY) }
@@ -962,6 +1008,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
                 BTN_PLAY_AGAIN -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.PLAY) }
                 BTN_NEXT_LEVEL -> { bridge.tiltRecalibrate = true; bridge.post(UiAction.NEXT_LEVEL) }
                 BTN_MENU -> bridge.post(UiAction.MENU)
+                BTN_BOARD -> bridge.leaderboards.show(s.levelIndex, s.difficulty)
                 BTN_COPY -> copyReport()
                 BTN_CONTINUE -> {
                     CrashReporter.clear(context)
@@ -983,6 +1030,8 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         const val BTN_COPY = 6
         const val BTN_CONTINUE = 7
         const val BTN_NEXT_LEVEL = 8
+        const val BTN_BOARD = 9
+        const val PILL_BOARD = 5
         const val REPORT_LINES = 15
     }
 }

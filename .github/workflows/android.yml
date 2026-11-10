@@ -18,14 +18,31 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests (game logic, renderer, audio synth, HUD)
-        run: ./gradlew :core:test :app:testDebugUnitTest --no-daemon
+      - name: Unit tests (game logic, renderer, audio synth, HUD, the Play Games module, both builds)
+        run: ./gradlew :core:test :playgames:testDebugUnitTest :app:testPlainDebugUnitTest :app:testGoogleDebugUnitTest :app:checkPlainHasNoGoogle --no-daemon
 
-      - name: Build the APK
-        run: ./gradlew :app:assembleRelease --no-daemon
+      - name: Build both APKs
+        run: ./gradlew :app:assemblePlainRelease :app:assembleGoogleRelease --no-daemon
 
-      - name: Upload the APK
+      - name: The plain APK has no Google code and no permissions
+        run: |
+          apk=app/build/outputs/apk/plain/release/app-plain-release.apk
+          aapt2=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          permissions=$("$aapt2" dump permissions "$apk" | grep -v '^package' || true)
+          echo "permissions: [$permissions]"
+          if [ -n "$permissions" ]; then echo "the plain APK must not ask for permissions"; exit 1; fi
+          if unzip -p "$apk" 'classes*.dex' | grep -a -q 'com/google/android/gms'; then echo "the plain APK has Google code in it"; exit 1; fi
+          if unzip -p "$apk" 'classes*.dex' | grep -a -q 'app/roadtoorbit/playgames'; then echo "the plain APK has the Play Games module in it"; exit 1; fi
+          echo "the plain APK is free of Google"
+
+      - name: Upload the plain APK (the one on GitHub)
         uses: actions/upload-artifact@v4
         with:
           name: transformer-triathlon-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/plain/release/*.apk
+
+      - name: Upload the Google Play build
+        uses: actions/upload-artifact@v4
+        with:
+          name: transformer-triathlon-play-apk
+          path: app/build/outputs/apk/google/release/*.apk

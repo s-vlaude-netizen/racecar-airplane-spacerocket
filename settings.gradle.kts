@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "road-to-orbit"
 
-include(":core", ":app")
+include(":core", ":playgames", ":app")

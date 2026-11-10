@@ -1,6 +1,7 @@
 package app.roadtoorbit
 
 import android.content.Context
+import app.roadtoorbit.online.OnlineFlavor
 import android.os.Build
 import java.io.File
 import java.text.SimpleDateFormat
@@ -129,7 +130,7 @@ object CrashReporter {
     private fun describeDevice(context: Context): String {
         val version = try {
             val info = context.packageManager.getPackageInfo(context.packageName, 0)
-            "${info.versionName} (${info.versionCode})"
+            "${info.versionName} (${info.versionCode}) ${OnlineFlavor.NAME}"
         } catch (_: Throwable) {
             "?"
         }

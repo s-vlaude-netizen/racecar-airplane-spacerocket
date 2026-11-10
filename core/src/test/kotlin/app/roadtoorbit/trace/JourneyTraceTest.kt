@@ -25,6 +25,7 @@ class JourneyTraceTest {
         val game = Game(7)
         game.level = Levels[(System.getProperty("traceLevel") ?: "0").toInt()]
         game.bestScore = 18_420
+        game.bestMillis = 185_140 // (the title screen shows the best time next to the best score)
         val input = GameInput()
         val bot = Bot(game)
         val hudDir = File(System.getProperty("hudStatesDir") ?: "build/traces/hud").also { it.mkdirs() }
@@ -182,6 +183,7 @@ class JourneyTraceTest {
         put("speedKmh", h.speedKmh); put("altitudeKm", h.altitudeKm); put("runTime", h.runTime)
         put("transformReady", h.transformReady); put("transforming", h.transforming); put("countdown", h.countdown)
         put("flash", h.flash); put("damageFlash", h.damageFlash); put("stars", h.stars); put("newBest", h.newBest)
+        put("finishMillis", h.finishMillis); put("bestMillis", h.bestMillis); put("newBestTime", h.newBestTime)
         put("breakdownBase", h.breakdownBase); put("breakdownHealth", h.breakdownHealth); put("breakdownTime", h.breakdownTime)
         put("popupCount", h.popupCount)
         for (i in 0 until h.popupCount) {
