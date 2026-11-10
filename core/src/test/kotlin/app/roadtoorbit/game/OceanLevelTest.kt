@@ -130,6 +130,32 @@ class OceanLevelTest {
         assertEquals(0f, game.player.y, "on the ground")
     }
 
+    /** The car used to stop further on the faster it arrived (with the boost it rolled into the city's dome and the camera with it). */
+    @Test fun theCarStopsAtTheSamePlaceInTheAvenueHoweverFastItArrives() {
+        val stops = ArrayList<Float>()
+        for ((seed, d, boost) in listOf(Triple(5L, Difficulty.NORMAL, false), Triple(6L, Difficulty.NORMAL, true), Triple(7L, Difficulty.HARD, true), Triple(8L, Difficulty.EASY, false), Triple(9L, Difficulty.HARD, false))) {
+            val game = Game(seed)
+            game.level = deep
+            game.difficulty = d
+            val input = GameInput()
+            val bot = Bot(game, useBoost = boost)
+            game.startRun(seed)
+            var t = 0f
+            while (t < 300f && game.phase != Phase.FINALE && game.phase != Phase.GAME_OVER) { bot.control(input, dt); game.update(dt, input); t += dt; while (game.pollSfx() != null) { } }
+            if (game.phase != Phase.FINALE) continue
+            val arrivedAt = game.player.speed
+            while (game.phase != Phase.VICTORY) { game.update(dt, input); while (game.pollSfx() != null) { } }
+            for (i in 0 until 300) { game.update(dt, input); while (game.pollSfx() != null) { } }
+            val pastTheGate = game.legDist - (game.level.legs[2].length + OceanSpawner.GATE_AHEAD)
+            stops.add(pastTheGate)
+            assertTrue(abs(pastTheGate - Game.ARRIVAL_STOP_AFTER_GATE) < 1.5f, "$d, boost $boost: arrived at ${arrivedAt.toInt()} m/s and stopped ${pastTheGate} m past the gate")
+            assertTrue(game.player.speed < 0.05f)
+            // the middle of the city is 165 m beyond the gate and its dome has a radius of 55 m
+            assertTrue(OceanSpawner.CITY_BEYOND_GATE - pastTheGate - 55f > 55f, "the car must stop well before the dome: ${OceanSpawner.CITY_BEYOND_GATE - pastTheGate - 55f} m from it")
+        }
+        assertTrue(stops.size >= 4, "the pilots arrived: ${stops.size}")
+    }
+
     @Test fun theDepthReadoutGoesFromTheSurfaceToTheTrench() {
         val (game, input, bot) = start(seed = 2)
         var t = 0f

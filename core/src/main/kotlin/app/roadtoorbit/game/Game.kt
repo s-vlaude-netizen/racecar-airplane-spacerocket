@@ -886,6 +886,7 @@ class Game(seed: Long = 1L) {
         player.boostFactor = 0f
         player.boosting = false
         welcomed = false; fireworkIn = 0f; fireworkChimes = 0
+        finaleStopDist = max(60f, leg.length + OceanSpawner.GATE_AHEAD + ARRIVAL_STOP_AFTER_GATE - legDist)
         removeWhere { it.kind.category == Category.HAZARD || it.kind.category == Category.PICKUP || it.kind == Kind.PLANET }
         finaleGroundY = if (level.finale == Finale.ARRIVAL) 0f else -330f
         flash = 0.6f
@@ -972,6 +973,7 @@ class Game(seed: Long = 1L) {
         if (t >= 7.4f) completeRun()
     }
 
+    private var finaleStopDist = 130f
     private var welcomed = false
     private var fireworkIn = 0f
     private var fireworkChimes = 0
@@ -1005,7 +1007,12 @@ class Game(seed: Long = 1L) {
         val v = p.visual
         v.time = clock
         v.steerDeg = 0f
-        p.speed = Mathx.lerp(finaleStartSpeed, 0f, Mathx.smoother(t / 4.8f))
+        // The car stops at the same place in the avenue however fast it arrives (with the boost it comes in at twice the speed
+        // and used to roll on into the city's dome): it brakes so that the distance that is left is exactly what it needs.
+        val stopAt = leg.length + OceanSpawner.GATE_AHEAD + ARRIVAL_STOP_AFTER_GATE
+        val remaining = max(0f, stopAt - legDist)
+        val decel = max(10f, finaleStartSpeed * finaleStartSpeed / (2f * finaleStopDist))
+        p.speed = if (remaining < 0.05f) 0f else min(p.speed, sqrt(2f * decel * remaining))
         p.x = Mathx.damp(p.x, 0f, 2f, dt)
         p.y = 0f
         p.roll = Mathx.damp(p.roll, 0f, 3f, dt)
@@ -1226,6 +1233,9 @@ class Game(seed: Long = 1L) {
 
         /** Where the submarine's dive takes it (y) and how far from the middle the car may be when it lands on the seabed. */
         const val DIVE_Y = 9f
+
+        /** In an arrival the car stops this far beyond the gate (the city's dome is more than 60 m further on). */
+        const val ARRIVAL_STOP_AFTER_GATE = 42f
 
         /** The welcome in Atlantis begins when the car has come to a stop. */
         const val WELCOME_AT = 4.4f
