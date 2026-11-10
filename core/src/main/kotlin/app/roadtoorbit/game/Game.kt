@@ -413,7 +413,8 @@ class Game(seed: Long = 1L) {
                 p.vy = 0f
                 p.pitch += 20f * sin(PI.toFloat() * Mathx.clamp01(e * 1.4f))
             } else if (xf.to == VehicleMode.CAR) {
-                p.pitch -= 14f * sin(PI.toFloat() * e) // the nose dips as the vehicle settles onto its wheels
+                // the nose dips a little as the vehicle comes down, and is level again well before the wheels touch
+                p.pitch -= 12f * sin(PI.toFloat() * e) * (1f - Mathx.smoothstep(0.55f, 0.85f, e))
             } else if (level.world == World.OCEAN && xf.from == VehicleMode.PLANE) {
                 // the dive: the nose goes down and the vehicle sinks to the depth the submarine starts its leg at
                 p.y = Mathx.lerp(xfStartY, DIVE_Y, Mathx.smoothstep(0f, 0.75f, e))
@@ -504,7 +505,7 @@ class Game(seed: Long = 1L) {
         p.vx = Mathx.damp(p.vx, 0f, 5f, dt)
         p.roll = Mathx.damp(p.roll, 0f, 5f, dt)
         p.yaw = Mathx.damp(p.yaw, 0f, 5f, dt)
-        p.pitch = Mathx.damp(p.pitch, 0f, 5f, dt)
+        p.pitch = 0f // set afresh every frame: the transformation's nose dip is added on top of it (stepPlayer), it must not pile up
         p.bounce = 0f; p.bounceV = 0f
         wheelSpin += p.speed / 0.36f * (180f / PI.toFloat()) * dt * Mathx.smoothstep(0.6f, 1f, e)
         wheelSpin %= 3600f
