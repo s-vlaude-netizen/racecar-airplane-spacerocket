@@ -275,6 +275,16 @@ class Game(seed: Long = 1L) {
             Phase.VICTORY -> updateVictory(dt)
         }
         look.update(this)
+        updateBeam()
+    }
+
+    /** How strongly the vehicle's lights shine: not at all in daylight, fully once it is dark (the ocean skin draws beams from them). */
+    private fun updateBeam() {
+        player.visual.beam = if (level.world != World.OCEAN) 0f else when (phase) {
+            Phase.MENU -> 0.4f
+            Phase.FINALE, Phase.VICTORY -> 1f
+            else -> Mathx.smoothstep(-1f, 1.5f, look.surfaceY - player.y) * Mathx.smoothstep(0.03f, 0.45f, look.depth)
+        }
     }
 
     // ---- menu ----------------------------------------------------------------------------------
@@ -803,8 +813,8 @@ class Game(seed: Long = 1L) {
         transformReady = false
         ringStreak = 0
 
-        // old-leg hazards and pickups are no longer relevant; scenery and the gate stay to slide past
-        removeWhere { it.kind.category == Category.HAZARD || it.kind.category == Category.PICKUP }
+        // old-leg hazards and pickups are no longer relevant; scenery and the gate stay to slide past (the clouds over the sea do not follow it under water)
+        removeWhere { it.kind.category == Category.HAZARD || it.kind.category == Category.PICKUP || (level.world == World.OCEAN && it.kind == Kind.CLOUD) }
         checkpoint = Checkpoint(score, coins, rings, nearMisses)
         player.invuln = Tuning.TRANSFORM_SECONDS + 0.9f
         shake = 0.6f
