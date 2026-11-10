@@ -2,8 +2,10 @@
 
 A 3D Android game where **one vehicle transforms three times**: you start as a race car, morph into an
 airplane to climb above the clouds, then into a space rocket to reach another world – where the rocket lands and
-turns back into a car for a victory drive. There are two levels: **the Moon** (from a mountain highway on Earth)
-and **Mars** (across the red desert and through a dust storm to Phobos, with Mars filling the sky).
+turns back into a car for a victory drive. There are three levels: **the Moon** (from a mountain highway on Earth),
+**Mars** (across the red desert and through a dust storm to Phobos, with Mars filling the sky) and **The Deep**, where
+the vehicle goes the other way: a waterplane skims the open sea, dives into a submarine-rocket, lands on the seabed as a
+car and drives along a sunken highway to the lost city of Atlantis.
 
 Everything you see and hear is generated in code: all 3D models, the sky, the terrain, every sound
 effect and the music. There are no image, model or audio files in the app, and the only runtime dependency
@@ -41,6 +43,22 @@ is the Kotlin standard library (the whole APK is under 1 MB).
   </tr>
 </table>
 
+**Level 3 · The Deep**
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/13-deep-wave-runner.jpg" alt="Level 3, stage 1: Wave Runner"><br><sub><b>1 · Wave Runner</b> – a waterplane skims the open sea: sea stacks, ships, gulls and rival seaplanes; low flying earns a WAVE SKIM bonus</sub></td>
+    <td><img src="docs/screenshots/14-deep-dive.jpg" alt="The waterplane dives"><br><sub><b>The dive</b> – the waterplane plunges under the surface and becomes a submarine-rocket</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/15-deep-dive-abyss.jpg" alt="Level 3, stage 2: Deep Dive"><br><sub><b>2 · Deep Dive</b> – sea mines, sharks and jellyfish in the dark water; the surface shimmers far above</sub></td>
+    <td><img src="docs/screenshots/16-deep-trench-run.jpg" alt="Level 3, stage 3: Trench Run"><br><sub><b>3 · Trench Run</b> – the submarine lands on the seabed and drives the sunken highway, past crabs and submersible traffic</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/17-deep-atlantis.jpg" alt="Arriving at Atlantis"><br><sub><b>Atlantis</b> – the road leads through the great gate into the lost city</sub></td>
+  </tr>
+</table>
+
 <sub>These are headless renders of the real renderer and the real HUD code (see
 [Testing without a device](#testing-without-a-device)), not captures from a phone.</sub>
 
@@ -64,13 +82,22 @@ Pick the level with the **LEVEL** pill on the menu (or the L key / gamepad Y); a
 
 Mars is the longer, faster level and gets harder sooner.
 
+**Level 3 · The Deep** turns the journey round: the vehicle changes in the order *plane → rocket → car*, and the last
+stage is a drive, so the game ends with an arrival at Atlantis instead of a landing.
+
+| Stage | You are | The Deep |
+|---|---|---|
+| 1 | a waterplane | **Wave Runner** – skim the sea: fly through rings low over the waves, dodge sea stacks, ships, gulls, squalls and rival seaplanes. Flying below about 3 m earns a **WAVE SKIM** bonus. Tap TRANSFORM in the zone to dive (a **PERFECT DIVE** pays +1000). |
+| 2 | a submarine-rocket | **Deep Dive** – weave between sea mines, sharks and jellyfish, collect pearls and fly through rings while the light fades. The next gate is where the seabed comes up to meet you (**PERFECT LANDING**). |
+| 3 | a seabed car | **Trench Run** – drive the sunken highway in the beam of your lights: submersible traffic, half-buried containers, kelp, mines on chains and crabs that scuttle across the road. Atlantis is at the end. |
+
 * **Steer** – drag anywhere on the left half of the screen (a floating stick). Left/right in the car, left/right + up/down in the air and in space. Optional **tilt steering** on the menu: your attitude at GO is neutral (it follows your grip during the countdown, so settle in however you like); tilt the right edge down to steer right, the top edge toward you to climb. A finger on the stick always wins.
 * **Boost** – hold the BOOST button. Nitro, orbs and crystals refill the meter.
 * **Transform** – near the end of the first two stages a glowing **transform zone** opens (guide arches / portal rings). Tap **TRANSFORM** while inside it. Pressing within the last 70 m of the gate is a **PERFECT LAUNCH** (+1000). If you forget, the vehicle transforms automatically at the gate, so you can never get stuck.
 * **Shields** – you have 3 per stage. A hit costs one and gives you a moment of invulnerability; wrenches repair. Lose all of them and you can retry the stage from its start.
 * **Score** – distance, coins, rings (streaks pay extra), near misses and transformations, plus a hull bonus and a time bonus when you land. 1–3 stars; the best score is saved per level and difficulty.
 * **Difficulty** – cycle EASY / NORMAL / HARD on the menu. Easy: 4 shields, wider gaps, a bit slower, ×0.8 points. Hard: 2 shields, tighter gaps, 10 % faster, ×1.4 points.
-* **Sound and music** can be switched off separately on the menu. There are nine music loops: the menu, and a race, a flight, a space and a finale loop for each level (Mars is in another key and mood).
+* **Sound and music** can be switched off separately on the menu. There are thirteen music loops: the menu, and a race (or sea), a flight (or dive), a space (or seabed) and a finale loop for each level (Mars and The Deep are in other keys and moods).
 * **Keyboard / gamepad** also work: arrows or WASD (D-pad) steer, Shift / Space (R1, B) boost, T (X) transforms, Enter (A) starts, resumes or retries, L (Y) picks the level on the menu and goes on to the next one after a win, P / Esc (Start) pauses.
 
 A full run takes about three minutes.
@@ -108,12 +135,17 @@ Some of the techniques:
   to the square of its view distance, so roads wind, hills roll and, at altitude, the horizon curves away.
 * **Procedural terrain** – the vertex shader builds the whole ground grid from `gl_VertexID` and noise
   anchored to world coordinates (no vertex buffer, no swimming). The same shader blends land → cloud deck → moon dust;
-  a world flag swaps the rolling green hills for terraced red mesas, the clouds for a dust deck and the Moon for Phobos.
+  a world flag swaps the rolling green hills for terraced red mesas, the clouds for a dust deck and the Moon for Phobos,
+  and a third setting turns the grid into the ocean: a moving low-poly sea with sun glints and foam, the same surface
+  seen from below with caustics, and the seabed with its rock walls.
   On the Moon and Phobos two grids of the same function are drawn, a fine one around the vehicle and a coarse one under
   it that reaches 2 km with mountain ranges standing on it, so the plain runs to the horizon instead of ending in an edge.
 * **Levels as data** – a level (`LevelSpec`) is its world, three legs, destination, difficulty curve and star scores; the
   simulation, spawner, renderer and HUD all read it, so the Moon and Mars share every line of game logic. Mars adds
   only skins (rovers, saucers, hoodoos, a second palette, its own music) and one new mechanic, the rolling boulders.
+  The Deep needed the logic to follow the order of a level's legs (plane, rocket, car), per-leg flight limits, a dive
+  (the sea rises over the vehicle) and a landing (the seabed rises to meet it) and an arrival finale; the vehicle
+  gets a second dress (`Skin.OCEAN`) and carries a lamp in the dark water.
 * **Procedural sky** – gradient, sun glow, two star layers and a nebula (baked once into a small cubemap),
   all looked up per pixel from the view direction; its palette slides from daylight to space with altitude.
 * **Sound and music** – effects and engine loops are synthesised (additive tones, sweeps, filtered noise) and
@@ -125,7 +157,7 @@ Some of the techniques:
 
 ### Testing without a device
 
-* `core` has unit tests plus a **bot** that plays all three stages of both levels headlessly on several seeds, on every
+* `core` has unit tests plus a **bot** that plays all three stages of all three levels headlessly on several seeds, on every
   difficulty and with a human-like reaction delay, to prove the game is winnable and never produces NaNs.
   The renderer, the vehicle morph, the nebula cubemap, the audio synthesisers, and the Martian models (they must fit the
   collision boxes of what they replace) have tests too. `./gradlew :core:test --tests '*BalanceReportTest*' -Dbalance=1`
@@ -147,6 +179,7 @@ Some of the techniques:
   ```bash
   tools/render-check/screenshots.sh                  # the Moon → tools/render-check/out/shots/*.png (28 key moments)
   tools/render-check/screenshots.sh <outDir> 1       # level 2, Mars
+  tools/render-check/screenshots.sh <outDir> 2       # level 3, The Deep
   ```
 
   It needs Node with Playwright + Chromium and Python with Pillow. Under the hood it is
@@ -169,7 +202,8 @@ lint reports no errors (a few warnings, mostly the deliberate fixed-landscape, n
 were inspected. The first run on a real phone found an out-of-memory crash (the music was re-requested on every frame in
 the menu and on the results screens, each request synthesising a whole loop on a new thread); that is fixed and has regression
 tests. The Mars level was added without touching the first one: the Moon's bot results and all of its rendered frames are
-identical to before the change, and both levels pass the same chaos, memory and strict-GL tests. Things that only real hardware
+identical to before the change, and the same held when The Deep was added (the frames of the first two levels are byte-identical
+to those before the change); all three levels pass the same chaos, memory and strict-GL tests. Things that only real hardware
 can confirm: the frame rate on actual GPUs (software GL was used to render the frames), tilt steering, touch feel, how the
 synthesised audio sounds (it was checked numerically and as spectrograms, not by ear), and how hard Mars feels to people (its
 difficulty was measured with test pilots, see `BalanceReportTest`, not with people).
