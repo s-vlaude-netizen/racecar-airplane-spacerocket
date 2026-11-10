@@ -119,12 +119,13 @@ class CameraRig {
         roll = 0f
     }
 
-    /** A drive that has reached its destination: the camera starts behind the car and swings round to a low view from the side, with the city behind it. */
+    /** A drive that has reached its destination: the camera starts behind the car and swings a little round to a low view, with the city behind the car. */
     private fun arrivalShot(g: Game) {
         val c = camera
         val p = g.player
         val swing = Mathx.smoother((g.finaleT - 0.5f) / 6.5f)
-        val az = swing * 1.1f + (if (g.phase == Phase.VICTORY) 0.06f * sin(g.clock * 0.4f) else 0f)
+        // only a little way round: the city has to stay behind the car, on the side of the frame the results panel leaves free
+        val az = swing * 0.6f + (if (g.phase == Phase.VICTORY) 0.05f * sin(g.clock * 0.4f) else 0f)
         val r = Mathx.lerp(14f, 9.5f, swing)
         c.ex = sin(az) * r
         c.ez = cos(az) * r

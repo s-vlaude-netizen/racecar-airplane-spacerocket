@@ -214,6 +214,7 @@ class Game(seed: Long = 1L) {
     private fun beginLeg(index: Int, countdownSeconds: Float) {
         legIndex = index
         legDist = 0f
+        skimTime = 0f; skimNext = SKIM_PERIOD
         val l = level.legs[index]
         clearWorld()
         player.reset(l.mode, l.startY, if (index == 0) 0f else l.speedStart * difficulty.speedScale, maxHealth)
@@ -413,6 +414,8 @@ class Game(seed: Long = 1L) {
             }
         }
 
+        if (level.world == World.OCEAN && l.mode == VehicleMode.PLANE && !xf.active && p.alive) skim(dt)
+
         v.wheelSpinDeg = wheelSpin
         val dom = v.dominant
         val flameBase = when (dom) {
@@ -454,6 +457,27 @@ class Game(seed: Long = 1L) {
         wheelSpin += p.speed / 0.36f * (180f / PI.toFloat()) * dt
         wheelSpin %= 3600f
         p.visual.steerDeg = -frac * 24f
+    }
+
+    private var skimTime = 0f
+    private var skimNext = SKIM_PERIOD
+
+    /** The waterplane is paid for flying low: the floats almost touch the waves and throw spray. */
+    private fun skim(dt: Float) {
+        val p = player
+        if (p.y < SKIM_Y && p.speed > 20f) {
+            skimTime += dt
+            scoreAcc += dt * SKIM_POINTS_PER_SECOND * difficulty.scoreScale
+            if (skimTime >= skimNext) {
+                skimNext += SKIM_PERIOD
+                popup("WAVE SKIM +${scaled((SKIM_POINTS_PER_SECOND * SKIM_PERIOD).toInt())}", COLOR_ACCENT, 0.8f, false)
+                sfx(Sfx.NEAR_MISS)
+                p.boostMeter = Mathx.clamp01(p.boostMeter + 0.02f)
+            }
+        } else if (p.y > SKIM_Y + 1f) {
+            skimTime = 0f
+            skimNext = SKIM_PERIOD
+        }
     }
 
     /** The highest the vehicle may fly in [l]: its own limit, and below the sea surface when it is under water. */
@@ -1162,6 +1186,11 @@ class Game(seed: Long = 1L) {
 
         /** Where the submarine's dive takes it (y) and how far from the middle the car may be when it lands on the seabed. */
         const val DIVE_Y = 9f
+
+        /** The waterplane skims the waves below this height; it earns this many points a second, with a bonus popup every period. */
+        const val SKIM_Y = 3.4f
+        const val SKIM_POINTS_PER_SECOND = 40f
+        const val SKIM_PERIOD = 1.5f
         const val LAND_X = Tuning.CAR_MAX_X - 0.4f
         const val NEAR_MISS_GAP = 1.25f
 
