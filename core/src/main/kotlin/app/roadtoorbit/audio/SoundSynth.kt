@@ -52,8 +52,8 @@ object SoundSynth {
             SoundId.ENGINE_CAR -> engineCar()
             SoundId.ENGINE_PLANE -> enginePlane()
             SoundId.ENGINE_ROCKET -> engineRocket()
-            SoundId.SPLASH -> touchdown() // placeholder until the splash is synthesised
-            SoundId.ENGINE_SUB -> engineRocket() // placeholder until the submarine's engine is synthesised
+            SoundId.SPLASH -> splash()
+            SoundId.ENGINE_SUB -> engineSub()
         },
     )
 
@@ -272,6 +272,44 @@ object SoundSynth {
         return o
     }
 
+    /**
+     * A seaplane diving into the sea (1.05 s, one-shot): a bright slap, a roar of water through a low-pass that falls
+     * from 7 kHz to 250 Hz, a low whump and a tail of little bubbles and pops. Normalised to the peak of the loud effects.
+     */
+    private fun splash(): FloatArray {
+        val o = buffer(1.05f)
+        val rnd = Noise(131)
+        var y1 = 0f
+        var y2 = 0f
+        for (i in o.indices) {
+            val t = i.toFloat() / SAMPLE_RATE
+            val a = min(1f, 2f * PI.toFloat() * (250f + 6750f * exp(-t * 6f)) / SAMPLE_RATE)
+            y1 += (rnd.next() - y1) * a
+            y2 += (y1 - y2) * a
+            o[i] += y2 * min(1f, t / 0.003f) * exp(-t * 4f) * 0.8f
+        }
+        noiseBurst(o, 0f, 0.04f, 0.45f, 70f, 0.85f, 133) // the slap
+        var whump = 0.0 // the whump: a low sine that slides down from 130 to 42 Hz as it dies away
+        for (i in 0 until (0.6f * SAMPLE_RATE).toInt()) {
+            val t = i.toFloat() / SAMPLE_RATE
+            whump += 2.0 * PI * (42f + 88f * exp(-t * 9f)) / SAMPLE_RATE
+            o[i] += (sin(whump) * min(1f, t / 0.004f) * exp(-t * 6.5f) * 0.9f).toFloat()
+        }
+        val bubbles = Noise(137)
+        for (k in 0 until 26) {
+            val u = k / 26f
+            val t = 0.16f + 0.8f * u.pow(1.25f) + 0.015f * bubbles.next()
+            val f = 380f + 900f * (bubbles.next() * 0.5f + 0.5f)
+            val vol = 0.7f * (1f - 0.7f * u)
+            sweep(o, t, 0.035f + 0.02f * (bubbles.next() * 0.5f + 0.5f), f, f * 1.45f, vol)
+            noiseBurst(o, t, 0.012f, vol * 0.5f, 150f, 0.22f, 140 + k) // a little filtered pop
+        }
+        var peak = 0f
+        for (v in o) peak = max(peak, abs(v))
+        if (peak > 0f) for (i in o.indices) o[i] *= 0.95f / peak
+        return o
+    }
+
     private fun ui(): FloatArray {
         val o = buffer(0.1f)
         tone(o, 0f, 0.08f, 1200f, 0.4f, 40f)
@@ -327,5 +365,39 @@ object SoundSynth {
         }
         p.add(Triple(42, 0.25f, 0f)); p.add(Triple(63, 0.16f, 0.7f)); p.add(Triple(84, 0.1f, 1.4f))
         return loop(p)
+    }
+
+    /**
+     * The submarine-rocket's engine: a muffled low hum (48 Hz and harmonics that fall off steeply, each doubled one Hz
+     * away so that it beats), a 3 Hz throb and gurgling bubbles that wrap round the end of the loop. Integer-Hz partials
+     * and a whole number of throb cycles make it repeat seamlessly; everything lies below about 1.3 kHz, so it stays
+     * muffled and free of aliasing when the game plays it at twice the speed, and keeps some body at half the speed.
+     */
+    private fun engineSub(): FloatArray {
+        val p = ArrayList<Triple<Int, Float, Float>>()
+        for (h in 1..9) {
+            val a = 1f / h.toFloat().pow(1.5f)
+            p.add(Triple(48 * h, a, h * 0.7f))
+            p.add(Triple(48 * h + 1, a * 0.3f, h * 1.9f))
+        }
+        val o = loop(p)
+        for (i in o.indices) o[i] *= 1f + 0.22f * sin(2.0 * PI * 3 * i / SAMPLE_RATE + 1.1).toFloat()
+        val rnd = Noise(151)
+        for (k in 0 until 40) {
+            val start = ((rnd.next() * 0.5f + 0.5f) * o.size).toInt()
+            val f = 150f + 650f * (rnd.next() * 0.5f + 0.5f)
+            val len = (SAMPLE_RATE * (0.025f + 0.045f * (rnd.next() * 0.5f + 0.5f))).toInt()
+            val vol = 0.5f + 0.6f * (rnd.next() * 0.5f + 0.5f)
+            var phase = 0.0
+            for (i in 0 until len) {
+                val u = i.toFloat() / len
+                phase += 2.0 * PI * f * (1f + 0.5f * u) / SAMPLE_RATE
+                o[(start + i) % o.size] += (sin(phase) * sin(PI * u) * (1f - u * 0.5f) * vol).toFloat()
+            }
+        }
+        var peak = 0f
+        for (v in o) peak = max(peak, abs(v))
+        if (peak > 0f) for (i in o.indices) o[i] *= 0.85f / peak
+        return o
     }
 }
