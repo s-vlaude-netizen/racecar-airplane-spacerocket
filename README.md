@@ -159,8 +159,10 @@ Some of the techniques:
 
 * `core` has unit tests plus a **bot** that plays all three stages of all three levels headlessly on several seeds, on every
   difficulty and with a human-like reaction delay, to prove the game is winnable and never produces NaNs.
-  The renderer, the vehicle morph, the nebula cubemap, the audio synthesisers, and the Martian models (they must fit the
-  collision boxes of what they replace) have tests too. `./gradlew :core:test --tests '*BalanceReportTest*' -Dbalance=1`
+  The renderer, the vehicle morph and its ocean dress, the nebula cubemap, the audio synthesisers, and the Martian and ocean
+  models (they must fit the collision boxes of what they replace or are placed by) have tests too; the ocean level has its own:
+  the dive puts the vehicle under the surface and keeps it there, the landing is smooth and ends on the seabed inside the lanes,
+  the arrival parks the car, and the depth readout runs from the surface to the trench. `./gradlew :core:test --tests '*BalanceReportTest*' -Dbalance=1`
   prints how often skilled and human-like pilots win, lose shields and die on every level and difficulty (`core/build/balance.txt`).
 * **Chaos tests** play the way real devices and thumbs do - random frame times and hitches, random steering and
   taps, restarts and retries at any moment, pauses, degenerate surface sizes, GL context loss - and render *every*
@@ -186,7 +188,8 @@ Some of the techniques:
   `./gradlew :core:journeyTrace` (bot plays, GL trace + HUD snapshots are recorded), `render.mjs` (replay in
   Chromium), `HudOverlayTest` (HUD on transparent bitmaps) and `compose.py` (overlay). `RenderTraceTest`
   records showroom views of all three forms and of the stages of both transformations, from the front,
-  side and rear, in the same way; `MeshGalleryTest` lays the Martian models out on the Martian ground.
+  side and rear, in the same way; `MeshGalleryTest` lays the Martian models out on the Martian ground, and `GalleryKit` is a small harness for looking at any
+  set of models in daylight, at sea, in the deep or on the seabed.
 
 ## If something goes wrong
 
@@ -197,7 +200,7 @@ with an error screen, that screen shows the same report. (Logcat has the full tr
 
 ## Status
 
-Developed and verified in a headless cloud environment: the code compiles, all tests pass (70 in `core`, 50 in `app`), Android
+Developed and verified in a headless cloud environment: the code compiles, all tests pass (139 in `core`, 50 in `app`), Android
 lint reports no errors (a few warnings, mostly the deliberate fixed-landscape, non-resizable activity), and the rendered frames
 were inspected. The first run on a real phone found an out-of-memory crash (the music was re-requested on every frame in
 the menu and on the results screens, each request synthesising a whole loop on a new thread); that is fixed and has regression
