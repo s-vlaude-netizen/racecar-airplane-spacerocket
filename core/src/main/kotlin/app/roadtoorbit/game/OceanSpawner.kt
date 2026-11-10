@@ -408,6 +408,6 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
     companion object {
         /** The road runs on past the end of the last leg: the gate of Atlantis is this far beyond it, and the city's middle this much further. */
         const val GATE_AHEAD = 90f
-        const val CITY_BEYOND_GATE = 150f
+        const val CITY_BEYOND_GATE = 165f // the wall's opening, where the gate stands, is 165 m from the middle of the city
     }
 }

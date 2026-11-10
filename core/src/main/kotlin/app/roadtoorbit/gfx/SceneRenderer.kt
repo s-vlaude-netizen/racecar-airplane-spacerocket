@@ -212,9 +212,9 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         while (s0 < routeS + 800f && s0 < endRoute) {
             if (s0 + SEG > routeS - 30f) {
                 Mat4.setTrs(m, 0f, env.groundY, -(s0 - routeS), 0f, 0f, 0f, 1f, 1f, 1f)
-                mat.reset().gloss(0.04f, 8f)
+                mat.reset().gloss(0.04f, 8f); mat.fogScale = 0.7f
                 renderer.drawLit(seg, m, mat)
-                mat.reset(); mat.emissive = 0.9f; mat.fogScale = 0.6f
+                mat.reset(); mat.emissive = 1f; mat.fogScale = 0.7f
                 renderer.drawLit(glow, m, mat)
             }
             s0 += SEG
@@ -358,12 +358,13 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         when (e.kind) {
             Kind.TRAFFIC -> {
                 id = when (e.variant) { 4 -> SUB_HAULERS[e.tint % 3]; 5 -> SUB_VANS[e.tint % 3]; else -> SUB_CARS[e.tint % 3] }
-                mat.gloss(0.45f, 36f); sx = 1f; sy = 1f; sz = 1f
+                mat.tint(1.3f, 1.05f, 0.9f); mat.gloss(0.45f, 36f); mat.emissive = 0.22f; mat.fogScale = 0.6f
+                sx = 1f; sy = 1f; sz = 1f
             }
-            Kind.BARRIER -> { id = MeshId.CONTAINER; sx = 1f; sy = 1f; sz = 1f }
-            Kind.CONE -> { id = MeshId.KELP_TUFT; sx = 1f; sy = 1f; sz = 1f }
+            Kind.BARRIER -> { id = MeshId.CONTAINER; mat.tint(1.3f, 1.05f, 0.9f); mat.gloss(0.1f, 12f); mat.emissive = 0.25f; mat.fogScale = 0.65f; sx = 1f; sy = 1f; sz = 1f }
+            Kind.CONE -> { id = MeshId.KELP_TUFT; mat.emissive = 0.25f; mat.fogScale = 0.65f; sx = 1f; sy = 1f; sz = 1f }
             Kind.BARREL -> { id = MeshId.MINE_0; val r = e.radius / 0.92f; sx = r; sy = r; sz = r; mat.gloss(0.3f, 20f) }
-            Kind.CRAB -> { id = CRABS[e.variant % 2]; mat.gloss(0.25f, 20f) }
+            Kind.CRAB -> { id = CRABS[e.variant % 2]; mat.tint(1.3f, 1.05f, 0.9f); mat.gloss(0.3f, 24f); mat.emissive = 0.25f; mat.fogScale = 0.65f }
             Kind.PEAK -> {
                 id = SEA_STACKS[e.variant % 3]
                 sx = e.hx; sz = e.hx; sy = e.hy * 2f
@@ -390,20 +391,23 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             Kind.START_ARCH -> { id = MeshId.START_BUOYS; mat.emissive = 0.2f; sx = 1f; sy = 1f; sz = 1f; ty = look.surfaceY }
             Kind.GATE_ARCH -> {
                 id = MeshId.ATLANTIS_GATE
-                mat.emissive = 0.3f; mat.fogScale = 0.35f
+                mat.tint(0.9f, 0.95f, 1f); mat.gloss(0.3f, 30f); mat.emissive = 0.25f; mat.fogScale = 0.4f
                 sx = 1f; sy = 1f; sz = 1f
             }
             Kind.MOON -> {
                 // Atlantis: the city, and its lights on top, visible from far away
                 Mat4.setTrs(m, e.x, ty, e.z, 0f, 0f, 0f, 1f, 1f, 1f)
-                mat.fogScale = 0.22f
+                mat.tint(0.82f, 0.88f, 0.94f); mat.gloss(0.35f, 30f); mat.emissive = 0.12f; mat.fogScale = 0.3f
                 renderer.drawLit(renderer.meshes[MeshId.ATLANTIS], m, mat)
-                mat.reset(); mat.emissive = 1f; mat.fogScale = 0.18f
+                mat.reset(); mat.emissive = 1f; mat.fogScale = 0.3f
                 renderer.drawLit(renderer.meshes[MeshId.ATLANTIS_LIGHTS], m, mat)
                 return true
             }
             Kind.SEASCAPE -> {
                 id = OceanSpec.SEASCAPE[e.variant.coerceIn(0, OceanSpec.SEASCAPE.size - 1)]
+                if (e.variant == OceanSpec.VENT || e.variant == OceanSpec.WRECK || e.variant == OceanSpec.WRECK + 1 || e.variant in OceanSpec.RUINS..OceanSpec.RUINS + 2) {
+                    mat.tint(1.3f, 1.05f, 0.9f); mat.gloss(0.15f, 14f); mat.emissive = 0.2f; mat.fogScale = 0.7f
+                }
                 if (e.variant == OceanSpec.VENT) mat.emissive = 0.25f
                 if (e.variant == OceanSpec.SCHOOL || e.variant == OceanSpec.SCHOOL + 1) { mat.emissive = 0.15f; mat.gloss(0.6f, 50f) }
                 if (e.variant == OceanSpec.WHALE) { mat.gloss(0.25f, 30f); mat.fogScale = 0.5f }

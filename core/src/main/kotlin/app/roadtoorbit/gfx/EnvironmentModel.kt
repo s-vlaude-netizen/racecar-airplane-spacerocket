@@ -269,12 +269,12 @@ class EnvironmentModel {
             e.fogDensity = 0.0034f
             e.fogColor[0] = 0.04f; e.fogColor[1] = 0.24f; e.fogColor[2] = 0.34f
             e.horizon[0] = 0.04f; e.horizon[1] = 0.24f; e.horizon[2] = 0.34f
-            e.ambSky[0] = 0.20f; e.ambSky[1] = 0.40f; e.ambSky[2] = 0.50f
-            e.ambGround[0] = 0.07f; e.ambGround[1] = 0.15f; e.ambGround[2] = 0.21f
-            e.sunColor[0] = 0.32f; e.sunColor[1] = 0.58f; e.sunColor[2] = 0.68f
+            e.ambSky[0] = 0.16f; e.ambSky[1] = 0.32f; e.ambSky[2] = 0.42f
+            e.ambGround[0] = 0.06f; e.ambGround[1] = 0.12f; e.ambGround[2] = 0.17f
+            e.sunColor[0] = 0.22f; e.sunColor[1] = 0.40f; e.sunColor[2] = 0.48f
             e.bendX = 0f; e.bendY = 0f
-            e.lamp[3] = 120f
-            e.lampColor[0] = 0.42f; e.lampColor[1] = 0.46f; e.lampColor[2] = 0.42f
+            e.lamp[3] = 100f
+            e.lampColor[0] = 0.24f; e.lampColor[1] = 0.28f; e.lampColor[2] = 0.26f
         }
     }
 
