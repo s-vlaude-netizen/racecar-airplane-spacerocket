@@ -370,23 +370,24 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                 ty = y - e.hy
             }
             Kind.SHIP -> { id = SHIPS[e.variant % 3]; sx = 1f; sy = 1f; sz = 1f; ty = y - e.hy; mat.gloss(0.3f, 24f) }
-            Kind.BALLOON -> { id = FLOCKS[e.variant % 4]; sx = 1f; sy = 1f; sz = 1f }
+            Kind.BALLOON -> { id = FLOCKS[e.variant % 4]; mat.gloss(0.3f, 30f); sx = 1f; sy = 1f; sz = 1f }
             Kind.JET -> { id = SEAPLANES[e.variant % 3]; mat.gloss(0.3f, 20f); sx = 1f; sy = 1f; sz = 1f }
-            Kind.MINE -> { id = MINES[e.variant % 2]; mat.gloss(0.35f, 24f); mat.rim(0.9f, 0.2f, 0.1f, 3f) }
+            Kind.MINE -> { id = MINES[e.variant % 2]; mat.gloss(0.5f, 40f); mat.emissive = 0.15f; mat.rim(0.9f, 0.3f, 0.2f, 3f) }
             Kind.JELLY -> {
                 id = JELLIES[e.variant % 2]
                 val pulse = 1f + 0.09f * sin(e.age * 3.1f + e.x)
                 sx = pulse; sz = pulse; sy = 1f / pulse
-                mat.emissive = 0.4f
+                mat.gloss(0.2f, 30f); mat.emissive = 0.55f
+                if (e.variant % 2 == 0) mat.rim(1f, 0.5f, 0.8f, 3f) else mat.rim(0.5f, 0.8f, 1f, 3f)
             }
-            Kind.SHARK -> { id = SHARKS[e.variant % 3]; mat.gloss(0.25f, 20f); sx = 1f; sy = 1f; sz = 1f }
-            Kind.CRYSTAL -> { id = MeshId.PEARL; mat.gloss(0.8f, 50f); mat.emissive = 0.5f; mat.rim(0.3f, 0.9f, 1f, 2.2f); sx = 1f; sy = 1f; sz = 1f }
+            Kind.SHARK -> { id = SHARKS[e.variant % 3]; mat.gloss(0.45f, 40f); mat.rim(0.3f, 0.8f, 0.9f, 3f); sx = 1f; sy = 1f; sz = 1f }
+            Kind.CRYSTAL -> { id = MeshId.PEARL; mat.gloss(0.8f, 60f); mat.emissive = 0.7f; mat.rim(0.4f, 0.9f, 1f, 2.5f); sx = 1.5f; sy = 1.5f; sz = 1.5f }
             Kind.PORTAL -> {
                 id = if (e.variant == 0) MeshId.DIVE_GATE_BIG else MeshId.DIVE_GATE_SMALL
-                mat.emissive = 0.9f; mat.fogScale = 0.4f
+                mat.emissive = if (g.legIndex == 0) 0.4f else 0.9f; mat.fogScale = 0.4f
                 sx = 1f; sy = 1f; sz = 1f
             }
-            Kind.START_ARCH -> { id = MeshId.START_BUOYS; sx = 1f; sy = 1f; sz = 1f; ty = look.surfaceY }
+            Kind.START_ARCH -> { id = MeshId.START_BUOYS; mat.emissive = 0.2f; sx = 1f; sy = 1f; sz = 1f; ty = look.surfaceY }
             Kind.GATE_ARCH -> {
                 id = MeshId.ATLANTIS_GATE
                 mat.emissive = 0.3f; mat.fogScale = 0.35f
@@ -404,7 +405,8 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             Kind.SEASCAPE -> {
                 id = OceanSpec.SEASCAPE[e.variant.coerceIn(0, OceanSpec.SEASCAPE.size - 1)]
                 if (e.variant == OceanSpec.VENT) mat.emissive = 0.25f
-                if (e.variant == OceanSpec.SCHOOL || e.variant == OceanSpec.SCHOOL + 1) mat.emissive = 0.12f
+                if (e.variant == OceanSpec.SCHOOL || e.variant == OceanSpec.SCHOOL + 1) { mat.emissive = 0.15f; mat.gloss(0.6f, 50f) }
+                if (e.variant == OceanSpec.WHALE) { mat.gloss(0.25f, 30f); mat.fogScale = 0.5f }
             }
             Kind.ROCK -> { id = ROCKS[e.variant % 3]; mat.tint(0.62f, 0.8f, 0.84f) }
             else -> return false
