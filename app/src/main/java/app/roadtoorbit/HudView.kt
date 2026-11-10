@@ -487,7 +487,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         txt.shader = null
         txt.textSkewX = 0f
         txt.letterSpacing = 0f
-        label(c, "RACE   ·   FLY   ·   DIVE   ·   LAUNCH", cx, ty + 5.6f * u, 3f * u, Color.argb(230, 230, 220, 255), Paint.Align.CENTER, sans, spacing = 0.25f)
+        label(c, s.tagline, cx, ty + 5.6f * u, 3f * u, Color.argb(230, 230, 220, 255), Paint.Align.CENTER, sans, spacing = 0.25f)
 
         // play prompt
         val pulse = 0.5f + 0.5f * sin(t() * 3.2f)

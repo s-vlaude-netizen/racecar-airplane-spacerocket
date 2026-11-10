@@ -13,6 +13,8 @@ class HudState {
     var phase = Phase.MENU
     var levelIndex = 0
     var levelName = Levels[0].name
+    /** The level's three disciplines in order (RACE · FLY · LAUNCH), for the menu. */
+    var tagline = Levels[0].tagline
     /** The level after this one, or "" when this is the last. */
     var nextLevelName = Levels[1].name
     var legIndex = 0
@@ -97,6 +99,7 @@ internal fun Game.fillHudInternal(h: HudState) {
     h.phase = phase
     h.levelIndex = level.index
     h.levelName = level.name
+    h.tagline = level.tagline
     h.nextLevelName = if (level.index + 1 < Levels.count) Levels[level.index + 1].name else ""
     h.legIndex = legIndex
     h.legName = l.name

@@ -43,6 +43,18 @@ class LevelSpec(
 
     val lastLeg: Int get() = legs.size - 1
 
+    /**
+     * The three disciplines of the triathlon in the order this level comes in, for the menu: RACE (the car), FLY (the plane), LAUNCH (the
+     * rocket). The order is the level's own (FLY, LAUNCH, RACE in the deep); what the rocket does there (it dives) is a surprise.
+     */
+    val tagline: String = legs.joinToString("   ·   ") { leg ->
+        when (leg.mode) {
+            VehicleMode.CAR -> "RACE"
+            VehicleMode.PLANE -> "FLY"
+            VehicleMode.ROCKET -> "LAUNCH"
+        }
+    }
+
     /** How the player's vehicle is dressed on this level. */
     val skin: Skin get() = if (world == World.OCEAN) Skin.OCEAN else Skin.STANDARD
 }
