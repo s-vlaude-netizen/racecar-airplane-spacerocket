@@ -16,6 +16,29 @@ import kotlin.math.sqrt
 enum class VehicleMode { CAR, PLANE, ROCKET }
 
 /**
+ * Numbers the game needs to dress the ocean-skinned vehicle with effects. Vehicle space: +X right, +Y up, the nose toward -Z;
+ * every point is {x, y, z} in metres, indexed by form (car, plane, rocket) where it differs.
+ */
+object OceanVehicle {
+    /** The propeller turns at this rate (degrees per second, clockwise seen from behind), driven by [VehicleVisual.time]: about three turns a second. */
+    const val PROP_DEG_PER_SEC = 1080f
+
+    /** The waterplane's pontoons: the keel (lowest point) and the waterline of a float at rest, in vehicle y. The sea touches the keel when the vehicle's y is [KEEL_Y] below the water. */
+    const val KEEL_Y = -0.49f
+    const val WATERLINE_Y = -0.30f
+
+    /** Where the bubble / exhaust emitters sit per form (car, plane, rocket): the car's thruster, the waterplane's propeller wash, the submarine's nozzle mouth. */
+    val EXHAUST: Array<FloatArray> = arrayOf(
+        floatArrayOf(0f, 0.52f, 2.35f),
+        floatArrayOf(0f, 0.62f, -3.1f),
+        floatArrayOf(0f, 0.62f, 4.1f),
+    )
+
+    /** The pontoons' sterns (left and right): spray / wake of the waterplane skimming the sea. */
+    val WAKE: Array<FloatArray> = arrayOf(floatArrayOf(-0.95f, -0.45f, 1.8f), floatArrayOf(0.95f, -0.45f, 1.8f))
+}
+
+/**
  * How the vehicle is dressed: the same three forms (car, plane, rocket) in the livery and with the extra parts of the
  * level's world. [OCEAN] turns them into the seabed car, the waterplane and the submarine-rocket.
  */
@@ -32,7 +55,8 @@ class Pose(
 private fun hidden(x: Float, y: Float, z: Float, tint: Int = Col.WHITE) =
     Pose(x, y, z, sx = 0.001f, sy = 0.001f, sz = 0.001f, tint = tint)
 
-enum class PartRole { NONE, FRONT_WHEEL, REAR_WHEEL }
+/** What a part does besides sitting where its pose puts it: the wheels spin (the front ones steer), the propeller turns with the clock. */
+enum class PartRole { NONE, FRONT_WHEEL, REAR_WHEEL, PROPELLER }
 
 /** One articulated piece of the vehicle with a pose per form. */
 class PartDef(
@@ -51,8 +75,22 @@ class PartDef(
     }
 }
 
+/**
+ * A beam of light that belongs to a lamp of the ocean skin: the cone's pose in vehicle space per form. The pose's tint carries
+ * the colour and, in its alpha, how strong the beam is in that form (0 = no beam). It follows the progress of [lamp], so that
+ * it moves with the lamp while the vehicle transforms.
+ */
+class BeamDef(val lamp: PartDef, val car: Pose, val plane: Pose, val rocket: Pose) {
+    fun pose(mode: VehicleMode): Pose = when (mode) {
+        VehicleMode.CAR -> car
+        VehicleMode.PLANE -> plane
+        VehicleMode.ROCKET -> rocket
+    }
+}
+
 /** Parameters describing how the vehicle looks this frame. */
 class VehicleVisual {
+    /** How the vehicle is dressed (see [Skin]); the part table, the body livery and the flame follow it. */
     var skin = Skin.STANDARD
     var from = VehicleMode.CAR
     var to = VehicleMode.CAR
@@ -62,7 +100,14 @@ class VehicleVisual {
     var steerDeg = 0f
     /** 0..1 engine flame intensity (scaled further by form). */
     var flame = 0f
+    /** The clock in seconds: it flickers the flame and, in the ocean skin, turns the propeller (so it turns when the vehicle stands still). */
     var time = 0f
+    /**
+     * 0..1: how strongly the vehicle's lights shine. In the ocean skin, above ~0.02, the searchlights throw translucent beams
+     * (two narrow ones from the car, a wide one from the submarine, none from the waterplane) whose strength follows this
+     * value, so it should be high where it is dark and 0 in daylight. The standard skin ignores it.
+     */
+    var beam = 0f
     var visible = true
 
     fun settle(mode: VehicleMode) {
@@ -89,7 +134,7 @@ object VehicleModel {
     private val DARK = rgb(0x24272E)
     private val SILVER = rgb(0xD3DAE4)
     private val METAL = rgb(0x6C7585)
-    private val ORANGE = rgb(0xFF7A1A)
+    private val ORANGE = rgb(0xFF6618)
 
     /** Part table (order = draw order). Poses are in vehicle space: nose toward -Z, up +Y. */
     val parts: Array<PartDef> = arrayOf(
@@ -290,10 +335,11 @@ object VehicleModel {
      * The cross-section is a superellipse whose width/height/centre/squareness/length all blend,
      * so the car body flows smoothly into the plane fuselage and on into the rocket tube.
      */
-    fun buildBody(out: MeshData, from: VehicleMode, to: VehicleMode, t: Float) {
+    fun buildBody(out: MeshData, from: VehicleMode, to: VehicleMode, t: Float, skin: Skin = Skin.STANDARD) {
         out.clear()
-        val a = forms[from.ordinal]
-        val b = forms[to.ordinal]
+        val table = if (skin == Skin.OCEAN) oceanForms else forms
+        val a = table[from.ordinal]
+        val b = table[to.ordinal]
         val k = if (from == to) 0f else Mathx.easeInOutCubic(t)
         val len = Mathx.lerp(a.length, b.length, k)
         val n = Mathx.lerp(a.n, b.n, k)
@@ -350,8 +396,8 @@ object VehicleModel {
                 val a0 = RING_DEG[j]
                 val a1 = if (jn == 0) 360f else RING_DEG[jn]
                 val mid = (a0 + a1) * 0.5f * Mat4.DEG2RAD
-                val colA = paint(from, uMid, cos(mid), sin(mid))
-                val color = if (from == to) colA else Col.mix(colA, paint(to, uMid, cos(mid), sin(mid)), Mathx.smoothstep(0.1f, 0.9f, tMix))
+                val colA = paint(skin, from, uMid, cos(mid), sin(mid))
+                val color = if (from == to) colA else Col.mix(colA, paint(skin, to, uMid, cos(mid), sin(mid)), Mathx.smoothstep(0.1f, 0.9f, tMix))
                 val vA = i * RING + j
                 val vB = i * RING + jn
                 val vC = (i + 1) * RING + jn
@@ -363,8 +409,8 @@ object VehicleModel {
         }
 
         // end caps (nose faces -Z, tail faces +Z)
-        val noseColor = capColor(from, to, tMix, nose = true)
-        val tailColor = capColor(from, to, tMix, nose = false)
+        val noseColor = capColor(skin, from, to, tMix, nose = true)
+        val tailColor = capColor(skin, from, to, tMix, nose = false)
         for (j in 0 until RING) {
             val jn = (j + 1) % RING
             out.vertex(cx[0], cy[0], cz[0], 0f, 0f, -1f, noseColor)
@@ -386,17 +432,26 @@ object VehicleModel {
         out.vertex(gx[idx], gy[idx], gz[idx], fx, fy, fz, color)
     }
 
-    private fun capColor(from: VehicleMode, to: VehicleMode, t: Float, nose: Boolean): Int {
+    private fun capColor(skin: Skin, from: VehicleMode, to: VehicleMode, t: Float, nose: Boolean): Int {
         fun one(m: VehicleMode): Int = when (m) {
             VehicleMode.CAR -> DARK
             VehicleMode.PLANE -> if (nose) RED else rgb(0x3A3D45)
             VehicleMode.ROCKET -> if (nose) RED else rgb(0x3A3D45)
         }
+        fun oneOcean(m: VehicleMode): Int = when (m) {
+            VehicleMode.CAR -> O_UNDER
+            VehicleMode.PLANE -> ORANGE
+            VehicleMode.ROCKET -> if (nose) ORANGE else rgb(0x3A3D45)
+        }
+        if (skin == Skin.OCEAN) return if (from == to) oneOcean(from) else Col.mix(oneOcean(from), oneOcean(to), t)
         return if (from == to) one(from) else Col.mix(one(from), one(to), t)
     }
 
     /** Livery for one form at body position (u along the length, ring direction cos/sin). */
-    private fun paint(mode: VehicleMode, u: Float, c: Float, s: Float): Int {
+    private fun paint(skin: Skin, mode: VehicleMode, u: Float, c: Float, s: Float): Int =
+        if (skin == Skin.OCEAN) paintOcean(mode, u, c, s) else paintStandard(mode, u, c, s)
+
+    private fun paintStandard(mode: VehicleMode, u: Float, c: Float, s: Float): Int {
         return when (mode) {
             VehicleMode.CAR -> when {
                 s < -0.45f -> DARK
@@ -421,6 +476,278 @@ object VehicleModel {
         }
     }
 
+    // ---- the ocean skin ------------------------------------------------------------------------
+    // Waterplane (PLANE): yellow, white and navy with orange tips, two pontoons, a propeller. Submarine-rocket (ROCKET): teal
+    // and white with orange bands, conning tower, periscope, portholes, ballast pods. Seabed car (CAR): orange with a white
+    // stripe, chunky tyres, a bubble dome, a roof light bar, twin searchlights. Orange and navy run through all three.
+
+    private val O_YELLOW = rgb(0xFFC41F)
+    private val O_NAVY = rgb(0x1B3C78)
+    private val O_TEAL = rgb(0x1CB5AE)
+    private val O_TEAL_DARK = rgb(0x0E6F73)
+    private val O_UNDER = rgb(0x1B2230)
+    private val O_TYRE = rgb(0x15171C)
+    private val O_STEEL = rgb(0x4B5870)
+    private val O_AQUA = rgb(0x7DF2FF)
+    private val O_LAMP = rgb(0xFFF3CC)
+    private val O_AMBER = rgb(0xFFB41E)
+    private val O_TAIL = rgb(0xFF2A22)
+
+    /** The ocean's lofts: the car keeps the standard one; the waterplane has a blunter nose for the propeller, the submarine a rounded bow. */
+    private val oceanForms = arrayOf(
+        forms[0],
+        Form(
+            5.6f, 2.3f,
+            w = floatArrayOf(0.17f, 0.31f, 0.42f, 0.48f, 0.50f, 0.50f, 0.47f, 0.41f, 0.32f, 0.23f, 0.15f, 0.11f),
+            h = floatArrayOf(0.17f, 0.31f, 0.42f, 0.48f, 0.50f, 0.50f, 0.47f, 0.42f, 0.34f, 0.26f, 0.19f, 0.15f),
+            c = FloatArray(STATIONS) { 0.61f + 0.05f * Mathx.smoothstep(0.5f, 1f, U[it]) },
+        ),
+        Form(
+            6.4f, 2.0f,
+            w = floatArrayOf(0.20f, 0.36f, 0.46f, 0.52f, 0.55f, 0.56f, 0.56f, 0.56f, 0.56f, 0.54f, 0.50f, 0.44f),
+            h = floatArrayOf(0.20f, 0.36f, 0.46f, 0.52f, 0.55f, 0.56f, 0.56f, 0.56f, 0.56f, 0.54f, 0.50f, 0.44f),
+            c = FloatArray(STATIONS) { 0.62f },
+        ),
+    )
+
+    private fun paintOcean(mode: VehicleMode, u: Float, c: Float, s: Float): Int = when (mode) {
+        VehicleMode.CAR -> when {
+            s < -0.45f -> O_UNDER
+            u < 0.03f -> O_UNDER
+            s > 0.2f && abs(c) < 0.14f -> WHITE // the stripe, with a navy line on each side
+            s > 0.2f && abs(c) < 0.26f -> O_NAVY
+            else -> ORANGE
+        }
+        VehicleMode.PLANE -> when {
+            u < 0.11f -> ORANGE
+            u > 0.93f -> ORANGE
+            s < -0.3f -> WHITE
+            abs(s) < 0.3f -> O_NAVY // the stripe along the flanks
+            else -> O_YELLOW
+        }
+        VehicleMode.ROCKET -> when {
+            u < 0.10f -> ORANGE
+            u < 0.17f -> WHITE
+            u > 0.95f -> rgb(0x3A3D45)
+            u > 0.88f -> ORANGE
+            u > 0.77f -> WHITE
+            s < -0.5f -> O_TEAL_DARK
+            else -> O_TEAL
+        }
+    }
+
+    private fun hid(x: Float, y: Float, z: Float, tint: Int, rx: Float = 0f, ry: Float = 0f, rz: Float = 0f) =
+        Pose(x, y, z, rx, ry, rz, 0.001f, 0.001f, 0.001f, tint)
+
+    /** Tyres and rims of the car (chunky) that become the ballast pods of the submarine; hidden on the waterplane. */
+    private fun oceanWheel(mesh: MeshId, x: Float, z: Float, side: Int, role: PartRole, carTint: Int, podTint: Int, delay: Float): PartDef {
+        val rim = mesh == MeshId.WHEEL_RIM
+        val car = if (rim) Pose(x, 0.50f, z, sx = 1.66f, sy = 1.34f, sz = 1.34f, tint = carTint) else Pose(x, 0.50f, z, sx = 1.52f, sy = 1.40f, sz = 1.40f, tint = carTint)
+        val podY = if (role == PartRole.FRONT_WHEEL) 0.62f + 0.56f else 0.62f - 0.56f
+        val pod = if (rim) Pose(side * 0.56f, podY, 2.15f, ry = 90f, sx = 6.0f, sy = 0.60f, sz = 0.60f, tint = podTint) else Pose(side * 0.56f, podY, 2.15f, ry = 90f, sx = 5.6f, sy = 0.56f, sz = 0.56f, tint = podTint)
+        return PartDef(
+            mesh, car = car, plane = hid(side * 0.25f, 0.55f, if (z < 0) -0.4f else 0.9f, carTint), rocket = pod,
+            delay = delay, spec = if (rim) 0.8f else 0.1f, shine = 40f, role = role, emissive = if (rim) 0f else 0.25f,
+        )
+    }
+
+    /** A float strut: a navy box from the pontoon up to the fuselage, leaning inward. */
+    private fun strut(side: Int, z: Float) = PartDef(
+        MeshId.LIGHT,
+        car = hid(side * 0.3f, 0.4f, z, O_NAVY),
+        plane = Pose(side * 0.625f, 0.13f, z, rz = side * 50f, sx = 0.075f, sy = 0.9f, sz = 0.12f, tint = O_NAVY),
+        rocket = hid(side * 0.3f, 0.4f, z, O_NAVY),
+        delay = 0f, spec = 0.2f,
+    )
+
+    private fun pontoon(side: Int) = PartDef(
+        MeshId.PONTOON,
+        car = hid(side * 0.4f, 0.4f, 0.3f, WHITE),
+        plane = Pose(side * 0.95f, -0.30f, 0.15f, sx = 0.42f, sy = 0.38f, sz = 3.3f, tint = WHITE),
+        rocket = hid(side * 0.4f, 0.4f, 0.3f, WHITE),
+        delay = 0f, spec = 0.35f, shine = 40f,
+    )
+
+    /** An elliptical wing: a pontoon lying along X with its pointed end at the tip; root hidden inside the fuselage. */
+    private fun wing(side: Int) = PartDef(
+        MeshId.PONTOON,
+        car = hid(side * 0.3f, 0.62f, 0.15f, O_YELLOW, ry = -side * 90f),
+        plane = Pose(side * 1.025f, 0.66f, 0f, ry = -side * 90f, sx = 1.25f, sy = 0.13f, sz = 4.05f, tint = O_YELLOW),
+        rocket = hid(side * 0.3f, 0.62f, 0.15f, O_YELLOW, ry = -side * 90f),
+        delay = 0.22f, spec = 0.3f, springy = true,
+    )
+
+    /** A round window on the hull, 35 degrees above the waterline, facing outward and up. */
+    private fun porthole(side: Int, z: Float): PartDef {
+        val a = 35f * Mat4.DEG2RAD
+        val x = side * 0.545f * cos(a)
+        val y = 0.62f + 0.545f * sin(a)
+        return PartDef(
+            MeshId.PORTHOLE,
+            car = hid(x * 0.5f, 0.62f, z, O_AQUA),
+            plane = hid(x * 0.5f, 0.62f, z, O_AQUA),
+            rocket = Pose(x, y, z, rx = 35f, ry = if (side < 0) 90f else -90f, sx = 0.34f, sy = 0.34f, sz = 0.34f, tint = O_AQUA),
+            delay = 0.30f, emissive = 0.9f,
+        )
+    }
+
+    private fun navLight(side: Int, planeTint: Int, lensX: Float) = PartDef(
+        MeshId.LIGHT,
+        car = Pose(lensX, 1.455f, 0.10f, sx = 0.2f, sy = 0.1f, sz = 0.17f, tint = O_AMBER),
+        plane = Pose(side * 2.9f, 0.68f, 0f, sx = 0.14f, sy = 0.10f, sz = 0.22f, tint = planeTint),
+        rocket = Pose(side * 1.33f, 0.62f, 2.85f, sx = 0.14f, sy = 0.14f, sz = 0.22f, tint = rgb(0x66E6FF)),
+        delay = 0.34f, emissive = 0.95f,
+    )
+
+    private fun lens(x: Float) = PartDef(
+        MeshId.LIGHT,
+        car = Pose(x, 1.455f, 0.10f, sx = 0.2f, sy = 0.1f, sz = 0.17f, tint = rgb(0xFFF6DC)),
+        plane = hid(x, 1.0f, 0.1f, rgb(0xFFF6DC)),
+        rocket = hid(x, 1.1f, 0.1f, rgb(0xFFF6DC)),
+        delay = 0.30f, emissive = 0.95f,
+    )
+
+    private fun tailLight(side: Int) = PartDef(
+        MeshId.LIGHT,
+        car = Pose(side * 0.66f, 0.60f, 2.19f, sx = 0.38f, sy = 0.11f, sz = 0.06f, tint = O_TAIL),
+        plane = hid(side * 0.2f, 0.6f, 2.0f, O_TAIL),
+        rocket = hid(side * 0.2f, 0.6f, 2.0f, O_TAIL),
+        delay = 0f, emissive = 0.95f,
+    )
+
+    private fun stabiliser(side: Int) = PartDef(
+        MeshId.FIN,
+        car = Pose(side * 0.55f, 0.90f, 1.80f, rz = -side * 90f, sy = 0.62f, sz = 0.42f, tint = O_NAVY),
+        plane = Pose(side * 0.22f, 0.66f, 1.9f, rz = -side * 90f, sy = 1.1f, sz = 0.7f, tint = O_YELLOW),
+        rocket = Pose(side * 0.50f, 0.62f, 2.30f, rz = -side * 90f, sy = 0.95f, sz = 0.85f, tint = ORANGE),
+        emissive = 0.25f,
+        delay = 0.28f, spec = 0.25f, springy = true,
+    )
+
+    /** The searchlights: one at the submarine's nose that splits into the car's twin lamps. */
+    private val lampL = PartDef(
+        MeshId.SEARCHLIGHT,
+        car = Pose(-0.58f, 0.54f, -2.12f, sx = 0.5f, sy = 0.5f, sz = 0.5f, tint = O_LAMP),
+        plane = hid(0f, 0.62f, -2.8f, O_LAMP),
+        rocket = Pose(0f, 0.62f, -3.14f, sx = 0.5f, sy = 0.5f, sz = 0.5f, tint = O_LAMP),
+        delay = 0.30f, spec = 0.3f, emissive = 0.85f,
+    )
+    private val lampR = PartDef(
+        MeshId.SEARCHLIGHT,
+        car = Pose(0.58f, 0.54f, -2.12f, sx = 0.5f, sy = 0.5f, sz = 0.5f, tint = O_LAMP),
+        plane = hid(0f, 0.62f, -2.8f, O_LAMP),
+        rocket = hid(0f, 0.62f, -3.1f, O_LAMP),
+        delay = 0.30f, spec = 0.3f, emissive = 0.85f,
+    )
+
+    /** Part table of the ocean skin (order = draw order), poses in vehicle space like [parts]. */
+    val oceanParts: Array<PartDef> = arrayOf(
+        oceanWheel(MeshId.WHEEL_TIRE, -1.02f, -1.34f, -1, PartRole.FRONT_WHEEL, O_TYRE, ORANGE, 0.04f),
+        oceanWheel(MeshId.WHEEL_TIRE, 1.02f, -1.34f, 1, PartRole.FRONT_WHEEL, O_TYRE, ORANGE, 0.04f),
+        oceanWheel(MeshId.WHEEL_TIRE, -1.02f, 1.36f, -1, PartRole.REAR_WHEEL, O_TYRE, ORANGE, 0.08f),
+        oceanWheel(MeshId.WHEEL_TIRE, 1.02f, 1.36f, 1, PartRole.REAR_WHEEL, O_TYRE, ORANGE, 0.08f),
+        oceanWheel(MeshId.WHEEL_RIM, -1.02f, -1.34f, -1, PartRole.FRONT_WHEEL, SILVER, O_NAVY, 0.04f),
+        oceanWheel(MeshId.WHEEL_RIM, 1.02f, -1.34f, 1, PartRole.FRONT_WHEEL, SILVER, O_NAVY, 0.04f),
+        oceanWheel(MeshId.WHEEL_RIM, -1.02f, 1.36f, -1, PartRole.REAR_WHEEL, SILVER, O_NAVY, 0.08f),
+        oceanWheel(MeshId.WHEEL_RIM, 1.02f, 1.36f, 1, PartRole.REAR_WHEEL, SILVER, O_NAVY, 0.08f),
+        wing(-1), wing(1),
+        PartDef(
+            MeshId.FIN,
+            car = hid(0f, 0.7f, 1.6f, ORANGE),
+            plane = Pose(0f, 0.80f, 1.75f, sy = 1.05f, sz = 0.8f, tint = ORANGE),
+            rocket = Pose(0f, 1.05f, 2.30f, sy = 0.85f, sz = 0.8f, tint = ORANGE),
+            emissive = 0.25f,
+            delay = 0.30f, spec = 0.25f, springy = true,
+        ),
+        PartDef(
+            MeshId.FIN,
+            car = hid(0f, 0.5f, 1.6f, ORANGE),
+            plane = hid(0f, 0.5f, 2.0f, ORANGE),
+            rocket = Pose(0f, 0.19f, 2.30f, rz = 180f, sy = 0.85f, sz = 0.8f, tint = ORANGE),
+            emissive = 0.25f,
+            delay = 0.30f, spec = 0.25f, springy = true,
+        ),
+        stabiliser(-1), stabiliser(1),
+        pontoon(-1), pontoon(1),
+        strut(-1, -0.55f), strut(-1, 0.75f), strut(1, -0.55f), strut(1, 0.75f),
+        PartDef(
+            MeshId.PROP,
+            car = hid(0f, 0.62f, -2.9f, WHITE),
+            plane = Pose(0f, 0.62f, -2.74f, sx = 0.98f, sy = 0.98f, sz = 1.0f, tint = WHITE),
+            rocket = hid(0f, 0.62f, -2.9f, WHITE),
+            delay = 0.10f, spec = 0.3f, role = PartRole.PROPELLER,
+        ),
+        PartDef(
+            MeshId.CANOPY,
+            car = Pose(0f, 0.74f, 0.08f, sx = 0.88f, sy = 0.66f, sz = 1.30f, tint = Col.WHITE),
+            plane = Pose(0f, 0.98f, -0.95f, sx = 0.38f, sy = 0.40f, sz = 1.1f, tint = Col.WHITE),
+            rocket = hid(0f, 1.1f, -1.0f, Col.WHITE),
+            delay = 0.05f, spec = 0.9f, shine = 70f, glass = true,
+        ),
+        PartDef(
+            MeshId.NOZZLE,
+            car = hid(0f, 0.55f, 2.0f, O_STEEL),
+            plane = hid(0f, 0.62f, 2.8f, O_STEEL),
+            rocket = Pose(0f, 0.62f, 3.55f, sx = 1.25f, sy = 1.25f, sz = 1.3f, tint = O_STEEL),
+            delay = 0.20f, spec = 0.6f, shine = 40f,
+        ),
+        navLight(-1, rgb(0xFF2A2A), -0.36f), navLight(1, rgb(0x2CFF6A), 0.36f),
+        tailLight(-1), tailLight(1),
+        PartDef(
+            MeshId.LIGHT,
+            car = Pose(0f, 1.405f, 0.10f, sx = 1.0f, sy = 0.07f, sz = 0.20f, tint = O_NAVY),
+            plane = hid(0f, 1.0f, 0.1f, O_NAVY),
+            rocket = hid(0f, 1.1f, 0.1f, O_NAVY),
+            delay = 0.30f, spec = 0.2f,
+        ),
+        lens(-0.12f), lens(0.12f),
+        PartDef(
+            MeshId.TOWER,
+            car = hid(0f, 0.9f, -0.5f, O_TEAL),
+            plane = hid(0f, 0.9f, -0.5f, O_TEAL),
+            rocket = Pose(0f, 1.02f, -0.55f, sx = 1.0f, sy = 0.8f, sz = 1.05f, tint = O_TEAL),
+            delay = 0.30f, spec = 0.3f,
+        ),
+        PartDef(
+            MeshId.PERISCOPE,
+            car = Pose(0.62f, 0.77f, 1.50f, sx = 0.7f, sy = 0.75f, sz = 0.7f, tint = WHITE),
+            plane = hid(0.3f, 1.0f, 1.0f, WHITE),
+            rocket = Pose(0f, 1.78f, -0.40f, sx = 0.5f, sy = 0.5f, sz = 0.5f, tint = WHITE),
+            delay = 0.30f, spec = 0.4f,
+        ),
+        porthole(-1, -1.9f), porthole(-1, 0.95f), porthole(-1, 1.55f),
+        porthole(1, -1.9f), porthole(1, 0.95f), porthole(1, 1.55f),
+        lampL, lampR,
+    )
+
+    /** The light beams (drawn additively when [VehicleVisual.beam] is on): the car's two narrow ones and the submarine's wide one. */
+    val oceanBeams: Array<BeamDef> = arrayOf(
+        BeamDef(
+            lampL,
+            car = Pose(-0.58f, 0.54f, -2.22f, rx = -2.5f, ry = 1.5f, sx = 4.6f, sy = 4.6f, sz = 20f, tint = Col.rgba(0xFFF0C8, 1f)),
+            plane = Pose(0f, 0.62f, -3.24f, sx = 11f, sy = 11f, sz = 30f, tint = Col.rgba(0xD8F6FF, 0f)),
+            rocket = Pose(0f, 0.62f, -3.24f, sx = 11f, sy = 11f, sz = 30f, tint = Col.rgba(0xD8F6FF, 1f)),
+        ),
+        BeamDef(
+            lampR,
+            car = Pose(0.58f, 0.54f, -2.22f, rx = -2.5f, ry = -1.5f, sx = 4.6f, sy = 4.6f, sz = 20f, tint = Col.rgba(0xFFF0C8, 1f)),
+            plane = Pose(0.58f, 0.54f, -2.22f, rx = -2.5f, ry = -1.5f, sx = 4.6f, sy = 4.6f, sz = 20f, tint = Col.rgba(0xFFF0C8, 0f)),
+            rocket = Pose(0.58f, 0.54f, -2.22f, rx = -2.5f, ry = -1.5f, sx = 4.6f, sy = 4.6f, sz = 20f, tint = Col.rgba(0xFFF0C8, 0f)),
+        ),
+    )
+
+    /** The exhaust flame of the ocean skin per form (no flame for the waterplane, which has a propeller). */
+    val oceanFlamePose = arrayOf(
+        Pose(0f, 0.52f, 2.30f, sx = 0.14f, sy = 0.14f, sz = 1.3f),
+        Pose(0f, 0.62f, 2.9f, sx = 0.10f, sy = 0.10f, sz = 0.4f),
+        Pose(0f, 0.62f, 4.25f, sx = 0.62f, sy = 0.62f, sz = 3.8f),
+    )
+
+    /** How much of [VehicleVisual.flame] each form of the ocean skin shows: the car a thruster puff, the waterplane none, the submarine all. */
+    val oceanFlameLevel = floatArrayOf(0.6f, 0f, 1f)
+
+    fun partsFor(skin: Skin): Array<PartDef> = if (skin == Skin.OCEAN) oceanParts else parts
+
     /** Eases a part's progress: staggered start ([PartDef.delay]) then smooth (or springy) motion. */
     fun partProgress(part: PartDef, morph: Float): Float {
         val local = Mathx.clamp01((morph - part.delay) / 0.65f)
@@ -438,27 +765,37 @@ class VehicleRenderer(gl: Gles, private val renderer: Renderer) {
     private var builtFrom: VehicleMode? = null
     private var builtTo: VehicleMode? = null
     private var builtMorph = -1f
+    private var builtSkin = Skin.STANDARD
 
     private val mat = Material()
     private val partM = FloatArray(16)
     private val worldM = FloatArray(16)
 
+    // the ocean skin's propeller: where it sits (before it turns), whether it is out, and its tint, for the blur drawn behind it
+    private val propM = FloatArray(16)
+    private val ghostM = FloatArray(16)
+    private var propShown = false
+    private var propTint = Col.WHITE
+
     /** [vehicleMatrix] places the vehicle in the world (translation + yaw/pitch/roll). */
     fun draw(v: VehicleVisual, vehicleMatrix: FloatArray) {
         if (!v.visible) return
+        val ocean = v.skin == Skin.OCEAN
         val tMorph = if (v.from == v.to) 0f else v.morph
-        if (builtFrom != v.from || builtTo != v.to || abs(builtMorph - tMorph) > 1e-4f) {
-            VehicleModel.buildBody(bodyData, v.from, v.to, tMorph)
+        if (builtFrom != v.from || builtTo != v.to || builtSkin != v.skin || abs(builtMorph - tMorph) > 1e-4f) {
+            VehicleModel.buildBody(bodyData, v.from, v.to, tMorph, v.skin)
             body.update(bodyData)
-            builtFrom = v.from; builtTo = v.to; builtMorph = tMorph
+            builtFrom = v.from; builtTo = v.to; builtMorph = tMorph; builtSkin = v.skin
         }
 
         // fuselage
-        mat.reset().gloss(0.55f, 48f).rim(0.10f, 0.14f, 0.22f, 3f)
+        if (ocean) { mat.reset().gloss(0.55f, 48f).rim(0.12f, 0.34f, 0.50f, 2.6f); mat.emissive = 0.22f } else mat.reset().gloss(0.55f, 48f).rim(0.10f, 0.14f, 0.22f, 3f)
         renderer.drawLit(body, vehicleMatrix, mat)
+        propShown = false
+        val propAngle = (v.time * OceanVehicle.PROP_DEG_PER_SEC) % 360f
 
         val steerW = v.weight(VehicleMode.CAR)
-        for (part in VehicleModel.parts) {
+        for (part in VehicleModel.partsFor(v.skin)) {
             val p = VehicleModel.partProgress(part, tMorph)
             val a = part.pose(v.from)
             val b = if (v.from == v.to) a else part.pose(v.to)
@@ -470,7 +807,14 @@ class VehicleRenderer(gl: Gles, private val renderer: Renderer) {
             if (part.role == PartRole.FRONT_WHEEL) ry += v.steerDeg * steerW
             Mat4.setTrs(partM, x, y, z, rx, ry, rz, sx, sy, sz)
             // wheel spin happens about the part's own X axis, innermost
-            if (part.role != PartRole.NONE && steerW > 0.01f) Mat4.rotateX(partM, v.wheelSpinDeg)
+            if ((part.role == PartRole.FRONT_WHEEL || part.role == PartRole.REAR_WHEEL) && steerW > 0.01f) Mat4.rotateX(partM, v.wheelSpinDeg)
+            if (part.role == PartRole.PROPELLER) {
+                // the propeller turns clockwise seen from behind, driven by the clock
+                Mat4.copy(propM, partM)
+                propShown = sx > 0.05f
+                propTint = tint
+                Mat4.rotateZ(partM, -propAngle)
+            }
             Mat4.multiply(worldM, vehicleMatrix, partM)
 
             mat.reset().tintColor(tint).gloss(part.spec, part.shine)
@@ -479,20 +823,67 @@ class VehicleRenderer(gl: Gles, private val renderer: Renderer) {
             renderer.drawLit(renderer.meshes[part.mesh], worldM, mat)
         }
 
+        if (ocean && propShown) drawPropBlur(vehicleMatrix, propAngle)
         drawFlame(v, vehicleMatrix)
+        if (ocean && v.beam > 0.02f) drawBeams(v, vehicleMatrix, tMorph)
+    }
+
+    /** Two faint copies of the propeller trailing behind it (alpha blended), so that its turning reads as a smooth blur. */
+    private fun drawPropBlur(vehicleMatrix: FloatArray, angle: Float) {
+        renderer.setBlend(Blend.ALPHA)
+        for (k in 1..2) {
+            Mat4.copy(ghostM, propM)
+            Mat4.rotateZ(ghostM, -angle + k * 24f)
+            Mat4.multiply(worldM, vehicleMatrix, ghostM)
+            mat.reset().tintColor(propTint).gloss(0.1f, 20f)
+            mat.a = if (k == 1) 0.30f else 0.14f
+            renderer.drawLit(renderer.meshes[MeshId.PROP], worldM, mat)
+        }
+        renderer.setBlend(Blend.OPAQUE)
+    }
+
+    /** The searchlights' beams: translucent cones, additive, drawn after everything opaque; their strength is [VehicleVisual.beam]. */
+    private fun drawBeams(v: VehicleVisual, vehicleMatrix: FloatArray, tMorph: Float) {
+        val beam = Mathx.clamp01(v.beam)
+        var started = false
+        for (bd in VehicleModel.oceanBeams) {
+            val p = Mathx.clamp01(VehicleModel.partProgress(bd.lamp, tMorph))
+            val a = bd.pose(v.from)
+            val b = if (v.from == v.to) a else bd.pose(v.to)
+            val tint = Col.mix(a.tint, b.tint, p)
+            val alpha = Col.a(tint) * beam
+            if (alpha < 0.01f) continue
+            if (!started) { renderer.setBlend(Blend.ADDITIVE); started = true }
+            Mat4.setTrs(
+                partM, Mathx.lerp(a.x, b.x, p), Mathx.lerp(a.y, b.y, p), Mathx.lerp(a.z, b.z, p),
+                Mathx.lerp(a.rx, b.rx, p), Mathx.lerp(a.ry, b.ry, p), Mathx.lerp(a.rz, b.rz, p),
+                Mathx.lerp(a.sx, b.sx, p), Mathx.lerp(a.sy, b.sy, p), Mathx.lerp(a.sz, b.sz, p),
+            )
+            Mat4.multiply(worldM, vehicleMatrix, partM)
+            mat.reset().tint(Col.r(tint), Col.g(tint), Col.b(tint), alpha)
+            mat.emissive = 1f; mat.fogScale = 0.3f
+            renderer.drawLit(renderer.meshes[MeshId.LIGHT_CONE], worldM, mat)
+        }
+        if (started) renderer.setBlend(Blend.OPAQUE)
     }
 
     private fun drawFlame(v: VehicleVisual, vehicleMatrix: FloatArray) {
+        val ocean = v.skin == Skin.OCEAN
         val k = Mathx.easeInOutCubic(v.morph)
-        val a = VehicleModel.flamePose[v.from.ordinal]
-        val b = VehicleModel.flamePose[v.to.ordinal]
+        val poses = if (ocean) VehicleModel.oceanFlamePose else VehicleModel.flamePose
+        val a = poses[v.from.ordinal]
+        val b = poses[v.to.ordinal]
         val t = if (v.from == v.to) 0f else Mathx.clamp01((v.morph - 0.2f) / 0.65f)
         val e = Mathx.easeInOutCubic(t)
-        val level = v.flame * Mathx.lerp(
-            if (v.from == VehicleMode.CAR) 0.6f else 1f,
-            if (v.to == VehicleMode.CAR) 0.6f else 1f,
-            e,
-        )
+        val level = if (ocean) {
+            v.flame * Mathx.lerp(VehicleModel.oceanFlameLevel[v.from.ordinal], VehicleModel.oceanFlameLevel[v.to.ordinal], e)
+        } else {
+            v.flame * Mathx.lerp(
+                if (v.from == VehicleMode.CAR) 0.6f else 1f,
+                if (v.to == VehicleMode.CAR) 0.6f else 1f,
+                e,
+            )
+        }
         if (level < 0.02f) return
         val flicker = 1f + 0.12f * sin(v.time * 47f) + 0.08f * sin(v.time * 83f + 1f)
         val z = Mathx.lerp(a.z, b.z, e); val y = Mathx.lerp(a.y, b.y, e)
@@ -501,9 +892,10 @@ class VehicleRenderer(gl: Gles, private val renderer: Renderer) {
         renderer.setBlend(Blend.ADDITIVE)
         Mat4.setTrs(partM, 0f, y, z - 0.05f, 0f, 0f, 0f, rad, rad, len)
         Mat4.multiply(worldM, vehicleMatrix, partM)
-        mat.reset().tint(1f, 1f, 1f, 0.85f)
+        // the ocean's flame is cyan: the same cone as the white-hot core, tinted
+        if (ocean) mat.reset().tint(0.35f, 0.9f, 1f, 0.8f) else mat.reset().tint(1f, 1f, 1f, 0.85f)
         mat.emissive = 1f; mat.fogScale = 0.2f
-        renderer.drawLit(renderer.meshes[MeshId.FLAME_OUTER], worldM, mat)
+        renderer.drawLit(renderer.meshes[if (ocean) MeshId.FLAME_INNER else MeshId.FLAME_OUTER], worldM, mat)
         Mat4.setTrs(partM, 0f, y, z - 0.02f, 0f, 0f, 0f, rad * 0.55f, rad * 0.55f, len * 0.62f)
         Mat4.multiply(worldM, vehicleMatrix, partM)
         mat.reset().tint(1f, 1f, 1f, 1f)
