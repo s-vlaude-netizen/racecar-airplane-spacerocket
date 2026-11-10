@@ -1,5 +1,6 @@
 package app.roadtoorbit.game
 
+import app.roadtoorbit.gfx.Footprints
 import app.roadtoorbit.math.Mathx
 import kotlin.math.PI
 import kotlin.math.abs
@@ -47,11 +48,13 @@ internal class Spawner(private val g: Game) {
 
         while (g.spawnCursor - g.legDist < leg.spawnAhead && g.spawnCursor < leg.length - 15f) {
             val s = g.spawnCursor
+            val before = g.entities.size
             val used = if (ocean) sea.pattern(leg, s, diff(leg.index, s, hazardEnd), s < hazardEnd) else when (leg.index) {
                 0 -> carPattern(s, diff(0, s, hazardEnd), s < hazardEnd)
                 1 -> planePattern(s, diff(1, s, hazardEnd), s < hazardEnd)
                 else -> rocketPattern(s, diff(2, s, hazardEnd), s < hazardEnd)
             }
+            settle(before)
             g.spawnCursor += used * zs
         }
 
@@ -79,6 +82,30 @@ internal class Spawner(private val g: Game) {
     }
 
     // ---- helpers ------------------------------------------------------------------------------
+
+    /**
+     * Whether a flying vehicle can meet what is placed at route distance [s]: the last stretch of a leg that ends in a transformation
+     * (the player may transform as soon as the zone begins) and everything after it. Scenery there has to clear the flight lanes.
+     */
+    /** Two hazards may touch, but not be deeper inside each other than this (m). */
+    private val TOUCH = 0.5f
+
+    internal fun flyerMeets(s: Float): Boolean {
+        val l = g.leg
+        return l.zoneLength > 0f && s + 12f > l.length - l.zoneLength - 20f // (12 m: a piece placed at s may stand a little farther on)
+    }
+
+    /** The clearance to keep from the route for scenery placed at route distance [s]. */
+    internal fun clearanceAt(s: Float): Float = if (flyerMeets(s)) Footprints.AIR_CLEAR else Footprints.CAR_CLEAR
+
+    /**
+     * Moves [e] sideways, to side [side] (+1 / -1), until no part of its model comes within [clear] of the route (its distance from the
+     * route is only ever increased). Scenery that stands in the lanes is drawn but not solid, so it must not stand in them.
+     */
+    internal fun standOff(e: Entity, side: Float, clear: Float): Entity {
+        e.x = side * max(abs(e.x), clear + Footprints.reach(e.kind, e.variant) * e.scale)
+        return e
+    }
 
     private fun laneX(i: Int): Float = (i - (Tuning.LANES - 1) / 2f) * Tuning.LANE_WIDTH
 
@@ -108,13 +135,13 @@ internal class Spawner(private val g: Game) {
             Kind.PEAK -> { e.groundBound = true }
             Kind.BALLOON -> { e.radius = 3.0f; e.spinY = 12f }
             Kind.STORM -> { e.radius = 5.6f; e.spinY = 8f }
-            Kind.JET -> { e.hx = 2.0f; e.hy = 0.7f; e.hz = 2.6f; e.speed = 30f }
+            Kind.JET -> { e.hx = 2.1f; e.hy = 0.7f; e.hz = 2.9f; e.speed = 30f }
             Kind.RING -> { e.param = 5.2f; e.spinZ = 40f }
             Kind.ORB -> { e.radius = 1.7f; e.spinY = 90f }
             Kind.ASTEROID -> {
                 e.radius = 2f; e.spinX = rng.range(-40f, 40f); e.spinY = rng.range(-40f, 40f); e.spinZ = rng.range(-30f, 30f)
             }
-            Kind.SATELLITE -> { e.hx = 3.0f; e.hy = 0.7f; e.hz = 1.1f; e.spinZ = 25f }
+            Kind.SATELLITE -> { e.hx = 4.3f; e.hy = 0.7f; e.hz = 1.1f } // the solar panels are part of it (so it does not roll: its box would not roll with it)
             Kind.CRYSTAL -> { e.radius = 1.5f; e.spinY = 140f }
             else -> Unit
         }
@@ -203,8 +230,9 @@ internal class Spawner(private val g: Game) {
             val lane = rng.int(Tuning.LANES)
             aimed[lane] = true
             val e = place(if (ocean) Kind.CRAB else Kind.BOULDER, s, k * 28f, side * rng.range(9.5f, 11.5f), r, variant = rng.int(if (ocean) 2 else 4))
-            e.radius = r * 0.9f
             e.scale = r
+            if (ocean) { e.hx = 1.1f * r; e.hy = 0.8f * r; e.hz = 1.5f * r } // a crab is wide and its claws reach ahead: a box, not a ball
+            else e.radius = r * 0.9f
             val seconds = rng.range(1.5f, 1.9f)
             e.armZ = -est * seconds
             e.armVx = (laneX(lane) - e.x) / seconds
@@ -438,6 +466,7 @@ internal class Spawner(private val g: Game) {
             val time = zDist / max(10f, est - e.speed)
             e.vx = (tx - e.x) / time
             e.ry = if (e.vx > 0f) -90f else 90f
+            val half = e.hx; e.hx = e.hz; e.hz = half // it flies sideways: its box turns with it
         }
         return n * 30f
     }
@@ -611,19 +640,103 @@ internal class Spawner(private val g: Game) {
         }
     }
 
+    // ---- hazards must not run through each other ----------------------------------------------
+
+    private fun solid(e: Entity): Boolean = e.kind.category == Category.HAZARD && e.kind != Kind.STORM && (e.radius > 0f || e.hx > 0f)
+
+    /**
+     * Hazards are not solid for each other, and they do not all move alike: traffic drives on at its own speed while the rest is carried
+     * toward the vehicle by the road, a seaplane crosses the sea sideways. So a car drove through the barrier ahead of it in its lane, a
+     * fast car through a slow one, a jet through the stack in its way, and random clusters of asteroids and mines overlapped. Everything a
+     * pattern has just placed (from entity number [from] on) is checked here, while it is still far ahead and nobody can see it: cars
+     * are made at least as fast as the cars behind them in their lane (so none catches up with another), and what would run into a hazard
+     * that was there before it, before the vehicle passes either, is dropped.
+     */
+    internal fun settle(from: Int) {
+        val list = g.entities
+        if (from >= list.size) return
+        // cars: never slower than a car behind them in their lane, so that none catches up with another (nearest first)
+        var cars = 0
+        for (i in from until list.size) if (list[i].kind == Kind.TRAFFIC) cars++
+        if (cars > 0) {
+            val batch = ArrayList<Entity>(cars)
+            for (i in from until list.size) if (list[i].kind == Kind.TRAFFIC) batch.add(list[i])
+            batch.sortByDescending { it.z }
+            for (e in batch) {
+                for (o in list) {
+                    if (o === e || o.kind != Kind.TRAFFIC || abs(o.x - e.x) > 0.5f || o.z <= e.z) continue
+                    if (o.speed > e.speed) e.speed = o.speed
+                }
+            }
+        }
+        // what would run into something that is already there
+        val v = max(30f, g.leg.speedStart * g.difficulty.speedScale)
+        var i = from
+        while (i < list.size) {
+            val e = list[i]
+            var clash = false
+            if (solid(e) && e.armZ == 0f) {
+                for (k in 0 until i) {
+                    val o = list[k]
+                    if (solid(o) && o.armZ == 0f && willOverlap(e, o, v)) { clash = true; break }
+                }
+            }
+            if (clash) g.discard(i) else i++ // (a discarded slot is refilled by the last entity, which is judged next)
+        }
+    }
+
+    /** Whether [a] and [b] will be inside each other (deeper than a touch) at some moment before the vehicle passes either, at their own speeds. */
+    private fun willOverlap(a: Entity, b: Entity, v: Float): Boolean {
+        val horizon = min(10f, min(-a.z / max(8f, v - a.speed), -b.z / max(8f, v - b.speed)) + 0.3f)
+        if (horizon <= 0f) return false
+        val reachZ = max(a.hz, a.radius) + max(b.hz, b.radius) + TOUCH
+        val reachX = max(a.hx, a.radius) + max(b.hx, b.radius) + TOUCH
+        val dz0 = a.z - b.z
+        val dz1 = dz0 + (b.speed - a.speed) * horizon
+        if ((dz0 > reachZ && dz1 > reachZ) || (dz0 < -reachZ && dz1 < -reachZ)) return false
+        val dx0 = a.x - b.x
+        val dx1 = dx0 + (a.vx - b.vx) * horizon
+        if ((dx0 > reachX && dx1 > reachX) || (dx0 < -reachX && dx1 < -reachX)) return false
+        val ay = g.entityY(a); val by = g.entityY(b)
+        var t = 0f
+        while (t <= horizon) {
+            if (penetration(a, b, dx0 + (a.vx - b.vx) * t, ay + a.vy * t - (by + b.vy * t), dz0 + (b.speed - a.speed) * t) > TOUCH) return true
+            t += 0.06f
+        }
+        return false
+    }
+
+    /** How far (m) two hazards, [a] at offset (dx, dy, dz) from [b], are inside each other: negative when they are apart. */
+    private fun penetration(a: Entity, b: Entity, dx: Float, dy: Float, dz: Float): Float {
+        if (a.radius > 0f && b.radius > 0f) return a.radius + b.radius - sqrt(dx * dx + dy * dy + dz * dz)
+        if (a.radius <= 0f && b.radius <= 0f) {
+            val ox = a.hx + b.hx - abs(dx); val oy = a.hy + b.hy - abs(dy); val oz = a.hz + b.hz - abs(dz)
+            return if (ox > 0f && oy > 0f && oz > 0f) min(ox, min(oy, oz)) else -1f
+        }
+        // a sphere and a box: the sphere's centre against the box
+        val ball = if (a.radius > 0f) a else b
+        val box = if (a.radius > 0f) b else a
+        val sign = if (a.radius > 0f) 1f else -1f // the offset of the ball from the box
+        val sx = dx * sign; val sy = dy * sign; val sz = dz * sign
+        val cx = Mathx.clamp(sx, -box.hx, box.hx); val cy = Mathx.clamp(sy, -box.hy, box.hy); val cz = Mathx.clamp(sz, -box.hz, box.hz)
+        val ex = sx - cx; val ey = sy - cy; val ez = sz - cz
+        return ball.radius - sqrt(ex * ex + ey * ey + ez * ez)
+    }
+
     // ---- scenery ------------------------------------------------------------------------------
 
     private fun carDecor(s: Float): Float {
         val side = rng.sign()
         val r = rng.float()
         val x = side * rng.range(10.5f, 36f)
+        val clear = clearanceAt(s)
         when {
             r < 0.50f -> place(Kind.TREE_PINE, s, 0f, x, 0f, variant = rng.int(3)).apply { scale = rng.range(0.85f, 1.7f); groundBound = true; ry = rng.range(0f, 360f) }
             r < 0.85f -> place(Kind.TREE_ROUND, s, 0f, x, 0f, variant = rng.int(3)).apply { scale = rng.range(0.85f, 1.6f); groundBound = true; ry = rng.range(0f, 360f) }
             else -> place(Kind.ROCK, s, 0f, x, 0f, variant = rng.int(3)).apply { scale = rng.range(0.8f, 2.2f); groundBound = true; ry = rng.range(0f, 360f) }
-        }
-        // occasional billboard hugging the road
-        if (rng.chance(0.045f)) {
+        }.let { standOff(it, side, clear) }
+        // occasional billboard hugging the road (not where the plane flies on: it would fly through it)
+        if (rng.chance(0.045f) && !flyerMeets(s)) {
             place(Kind.BILLBOARD, s, 4f, -side * 12.5f, 0f, variant = rng.int(4)).apply { groundBound = true; ry = if (-side > 0) -12f else 12f }
         }
         return rng.range(9f, 20f)
@@ -632,15 +745,16 @@ internal class Spawner(private val g: Game) {
     private fun marsCarDecor(s: Float): Float {
         val side = rng.sign()
         val r = rng.float()
+        val clear = clearanceAt(s)
         when {
             r < 0.50f -> place(Kind.ROCK, s, 0f, side * rng.range(13f, 40f), 0f, variant = rng.int(3)).apply { scale = rng.range(0.8f, 2.3f); groundBound = true; ry = rng.range(0f, 360f) }
             r < 0.68f -> place(Kind.MESA, s, 0f, side * rng.range(34f, 58f), 0f, variant = rng.int(3)).apply { scale = rng.range(0.6f, 1.4f); groundBound = true; ry = rng.range(0f, 360f) }
             r < 0.78f -> place(Kind.DEVIL, s, 0f, side * rng.range(16f, 58f), 0f).apply { scale = rng.range(0.55f, 1.3f); groundBound = true; spinY = rng.range(40f, 90f) * rng.sign() }
             r < 0.82f -> place(Kind.DOME, s, 0f, side * rng.range(30f, 50f), 0f).apply { scale = rng.range(0.8f, 1.2f); groundBound = true; ry = rng.range(0f, 360f) }
             else -> place(Kind.ROCK, s, 0f, side * rng.range(10.5f, 30f), 0f, variant = rng.int(3)).apply { scale = rng.range(0.6f, 1.4f); groundBound = true; ry = rng.range(0f, 360f) }
-        }
-        // colony signs hug the road now and then
-        if (rng.chance(0.045f)) {
+        }.let { standOff(it, side, clear) }
+        // colony signs hug the road now and then (not where the plane flies on)
+        if (rng.chance(0.045f) && !flyerMeets(s)) {
             place(Kind.BILLBOARD, s, 4f, -side * 12.5f, 0f, variant = rng.int(4)).apply { groundBound = true; ry = if (-side > 0) -12f else 12f }
         }
         return rng.range(9f, 20f)
@@ -653,6 +767,7 @@ internal class Spawner(private val g: Game) {
             val e = place(if (mars) Kind.ROCK else Kind.TREE_PINE, s, 0f, side * rng.range(12f, 36f), 0f, variant = rng.int(3))
             e.scale = if (mars) rng.range(1.2f, 3.0f) else rng.range(0.9f, 1.8f)
             e.groundBound = true
+            standOff(e, side, Footprints.AIR_CLEAR) // the plane's wings reach out to |x| = 16
         }
         // puffy clouds off to the sides, above and below the flight corridor (never inside it)
         val side = rng.sign()

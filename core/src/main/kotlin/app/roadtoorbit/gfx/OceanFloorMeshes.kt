@@ -497,6 +497,9 @@ private object SeabedProps {
         face(a, bq, b1, a1); face(bq, c, c1v, b1); face(c, d, d1, c1v); face(d, a, a1, d1)
     }
 
+    /** The crab is moved this far back so that its claws (at z = -2.6) and its tail end (z = 1.0) are about as far from the origin. */
+    private const val CRAB_SHIFT_Z = 0.8f
+
     private class CrabSpec(
         val shell: Int, val shellDark: Int, val claw: Int, val tip: Int, val leg: Int, val legTip: Int, val eye: Int, val spot: Int,
         val rx: Float, val ry: Float, val rz: Float, val legSpan: Float, val legR: Float, val clawScale: Float, val spiny: Boolean,
@@ -515,6 +518,7 @@ private object SeabedProps {
      */
     fun crab(b: MeshBuilder, v: Int) {
         val s = CRABS[v]
+        b.translate(0f, 0f, CRAB_SHIFT_Z) // the claws reach far ahead of the shell: centre the whole crab so that its hit box can follow it
         // the shell: a flattened dome, the belly dark
         b.push().translate(0f, 0.05f, 0f).scale(s.rx, s.ry, s.rz).sphere(1f, 5, 12, s.shell, s.shellDark, smooth = true, latFromDeg = -40f, latToDeg = 90f).pop()
         // a raised ridge and bumps on the carapace

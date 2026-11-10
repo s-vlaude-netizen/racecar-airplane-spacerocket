@@ -84,7 +84,8 @@ class CameraRig {
         height += 0.9f * xf
         fovBase += 6f * xf
 
-        camX = Mathx.damp(camX, p.x * 0.72f, 9f, dt)
+        // (as a car it follows its steering more closely: a truck in the next lane must not pass through the camera)
+        camX = Mathx.damp(camX, p.x * (0.72f + 0.14f * wc), 9f, dt)
         camY = Mathx.damp(camY, p.y * 0.86f + height, 7f, dt)
         roll = Mathx.damp(roll, p.roll * 0.30f, 6f, dt)
         fov = Mathx.damp(fov, fovBase + 11f * p.boostFactor + (p.speed - g.leg.speedStart) * 0.06f, 5f, dt)

@@ -31,6 +31,12 @@ class TerrainWindow {
 class Renderer(private val gl: Gles, library: MeshLibrary) {
     val meshes = GpuMeshCache(gl, library)
 
+    /** A hook for tests: told about every lit mesh and the matrix it is drawn with, just before the draw. Null in the game. */
+    internal var litObserver: ((mesh: GpuMesh, model: FloatArray) -> Unit)? = null
+
+    /** While the scene draws an entity, which one (for [litObserver]); null for everything else. */
+    internal var observedEntity: app.roadtoorbit.game.Entity? = null
+
     var width = 1
         private set
     var height = 1
@@ -266,6 +272,7 @@ class Renderer(private val gl: Gles, library: MeshLibrary) {
     /** Draws [mesh] with a model matrix; silently skips meshes whose scale collapsed to ~0. */
     fun drawLit(mesh: GpuMesh, model: FloatArray, m: Material) {
         if (Mat4.maxColumnLengthSq(model) < 1e-8f) return
+        litObserver?.invoke(mesh, model)
         useLit()
         Mat4.normalMatrix(normalMat, model)
         gl.uniformMatrix4fv(lModel, model)
@@ -375,6 +382,12 @@ class GpuMeshCache(private val gl: Gles, private val library: MeshLibrary) {
 
     operator fun get(id: MeshId): GpuMesh =
         cache[id.ordinal] ?: GpuMesh.static(gl, library.data(id)).also { cache[id.ordinal] = it }
+
+    /** Which mesh [mesh] is (null for the vehicle's own, dynamic ones); only tests ask. */
+    internal fun idOf(mesh: GpuMesh): MeshId? {
+        for (i in cache.indices) if (cache[i] === mesh) return MeshId.values()[i]
+        return null
+    }
 
     fun release() {
         for (i in cache.indices) {

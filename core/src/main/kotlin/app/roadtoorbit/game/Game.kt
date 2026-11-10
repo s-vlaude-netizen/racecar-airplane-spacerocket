@@ -182,6 +182,7 @@ class Game(seed: Long = 1L) {
         scoreAcc = 0f
         newBest = false; stars = 0
         travelled = 0.0
+        hazardsPlaced = 0; hazardsDropped = 0
         checkpoint = Checkpoint(0, 0, 0, 0)
         particles.clear()
         popups.clear()
@@ -247,10 +248,28 @@ class Game(seed: Long = 1L) {
         entities.clear()
     }
 
+    /** How many hazards the spawner has placed in this run, and how many of them it dropped again because they would have run through another (see [Spawner.settle]). */
+    internal var hazardsPlaced = 0
+        private set
+    internal var hazardsDropped = 0
+        private set
+
+    /** Takes entity number [index] out of the world again (the spawner drops what would run through another hazard). */
+    internal fun discard(index: Int) {
+        hazardsDropped++
+        val e = entities[index]
+        e.alive = false
+        pool.add(e)
+        val last = entities.size - 1
+        if (index != last) entities[index] = entities[last]
+        entities.removeAt(last)
+    }
+
     internal fun obtain(kind: Kind): Entity {
         val e = if (pool.isNotEmpty()) pool.removeAt(pool.size - 1) else Entity()
         e.reset(kind)
         entities.add(e)
+        if (kind.category == Category.HAZARD) hazardsPlaced++
         return e
     }
 
@@ -847,6 +866,7 @@ class Game(seed: Long = 1L) {
         xf.t = 1f
         player.mode = xf.to
         player.visual.settle(xf.to)
+        removeWhere { it.kind == Kind.RAMP } // the launch ramp lies behind the vehicle by now, and a plane that dives must not meet its tail
         flash = 0.5f
         shake = max(shake, 0.4f)
         sfx(Sfx.TRANSFORM_DONE)

@@ -261,8 +261,10 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         for (e in g.entities) {
             if (e.z > 28f) continue
             if (e.hit && e.kind.category == app.roadtoorbit.game.Category.PICKUP) continue
+            renderer.observedEntity = e
             drawEntity(g, e)
         }
+        renderer.observedEntity = null
     }
 
     private fun drawEntity(g: Game, e: Entity) {
@@ -350,7 +352,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                 mat.emissive = 0.9f; mat.fogScale = 0.4f
                 sx = 1f; sy = 1f; sz = 1f
             }
-            Kind.ASTEROID -> { id = ASTEROIDS[e.variant % 4]; mat.gloss(0.08f, 10f); if (mars) mat.tint(1.12f, 0.82f, 0.68f) }
+            Kind.ASTEROID -> { id = ASTEROIDS[e.variant % 4]; mat.gloss(0.08f, 10f); if (mars) mat.tint(1.12f, 0.82f, 0.68f); sx *= ROCK_FIT; sy *= ROCK_FIT; sz *= ROCK_FIT }
             Kind.SATELLITE -> { id = MeshId.SATELLITE; mat.gloss(0.6f, 30f); sx = 1f; sy = 1f; sz = 1f }
             Kind.CRYSTAL -> { id = MeshId.CRYSTAL; mat.gloss(0.8f, 50f); mat.emissive = 0.7f; mat.rim(0.3f, 0.9f, 1f, 2.2f); sx = 1f; sy = 1f; sz = 1f }
             Kind.PLANET -> {
@@ -361,7 +363,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             Kind.MESA -> id = MESAS[e.variant % 3]
             Kind.DEVIL -> id = MeshId.DEVIL
             Kind.DOME -> id = MeshId.DOME
-            Kind.BOULDER -> { id = ASTEROIDS[e.variant % 4]; mat.gloss(0.08f, 10f); mat.tint(0.66f, 0.52f, 0.46f); mat.rim(0.95f, 0.38f, 0.10f, 2.6f) } // dark basalt with a hot rim: not scenery
+            Kind.BOULDER -> { id = ASTEROIDS[e.variant % 4]; mat.gloss(0.08f, 10f); mat.tint(0.66f, 0.52f, 0.46f); mat.rim(0.95f, 0.38f, 0.10f, 2.6f); sx *= ROCK_FIT; sy *= ROCK_FIT; sz *= ROCK_FIT } // dark basalt with a hot rim: not scenery
             Kind.SHIP, Kind.MINE, Kind.JELLY, Kind.SHARK, Kind.CRAB, Kind.SEASCAPE -> return // the ocean: drawn once its models exist
         }
         // tint multipliers chosen by the spawner (balloons/billboards keep their own colours)
@@ -532,6 +534,9 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
     private companion object {
         const val SEG = 24f
         const val RAD2DEG = 57.29578f
+
+        /** Asteroids and boulders are drawn a little smaller than their number says, so that their lumps stay close to the sphere that hits. */
+        const val ROCK_FIT = 0.95f
         val SEDANS = arrayOf(MeshId.SEDAN_0, MeshId.SEDAN_1, MeshId.SEDAN_2, MeshId.SEDAN_3, MeshId.SEDAN_4, MeshId.SEDAN_5)
         val TRUCKS = arrayOf(MeshId.TRUCK_0, MeshId.TRUCK_1, MeshId.TRUCK_2)
         val VANS = arrayOf(MeshId.VAN_0, MeshId.VAN_1, MeshId.VAN_2)

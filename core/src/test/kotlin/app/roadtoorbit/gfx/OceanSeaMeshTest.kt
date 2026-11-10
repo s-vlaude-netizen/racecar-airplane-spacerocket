@@ -143,7 +143,9 @@ class OceanSeaMeshTest {
         assertTrue(small[3] in 9f..12f && small[0] <= -9f && small[4] in 9f..12f && small[1] <= -9f, "the small gate should have a radius of 9 m: ${small.toList()}")
         assertTrue(big[5] - big[2] < 4f && small[5] - small[2] < 3f, "a gate is a ring in the XY plane")
         val s = bounds(MeshId.START_BUOYS)
-        assertTrue(s[0] >= -7.85f && s[3] <= 7.85f && s[2] >= -1.5f && s[5] <= 1.5f && s[1] >= -0.05f && s[4] in 9f..9.55f, "the start buoys leave their bounds: ${s.toList()}")
+        // the buoys stand outside the waterplane's lanes (13 m and its wings), the start line lies flat on the water between them
+        assertTrue(s[0] >= -18.05f && s[3] <= 18.05f && s[2] >= -1.5f && s[5] <= 1.5f && s[1] >= -0.05f && s[4] in 9f..9.55f, "the start buoys leave their bounds: ${s.toList()}")
+        assertTrue(s[3] - 0.45f >= 16.4f, "the buoys must stand outside the waterplane's lanes: their inner edge is at ${s[3] - 0.45f}")
     }
 
     @Test fun sceneryStandsOnTheGround() {

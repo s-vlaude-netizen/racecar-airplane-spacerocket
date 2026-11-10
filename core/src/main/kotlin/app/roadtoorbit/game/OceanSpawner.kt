@@ -1,5 +1,6 @@
 package app.roadtoorbit.game
 
+import app.roadtoorbit.gfx.Footprints
 import app.roadtoorbit.gfx.OceanSpec
 import app.roadtoorbit.gfx.VehicleMode
 import app.roadtoorbit.math.Mathx
@@ -144,6 +145,7 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
             val time = zDist / max(10f, est - e.speed)
             e.vx = (tx - e.x) / time
             e.ry = if (e.vx > 0f) -90f else 90f
+            e.hx = OceanSpec.SEAPLANE_HALF[2]; e.hz = OceanSpec.SEAPLANE_HALF[0] // it flies sideways: its box turns with it
         }
         return n * 30f
     }
@@ -158,6 +160,7 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
             e.groundBound = true
             e.onSurface = true
             e.ry = rng.range(0f, 360f)
+            sp.standOff(e, side, Footprints.AIR_CLEAR) // the waterplane flies low over the sea: no island in its lanes
         } else {
             // puffy clouds high above the sea
             val size = rng.range(5f, 14f)
@@ -262,6 +265,7 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
             val time = abs(e.z) / max(20f, est)
             e.vx = (tx - e.x) / time
             e.ry = if (e.vx > 0f) -90f else 90f
+            e.hx = half[2] * SHARK_BODY; e.hz = half[0] // it swims sideways: its box turns with it (the pointed nose and tail do not hit)
         }
         return n * 36f
     }
@@ -311,14 +315,16 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
         val r = rng.float()
         // the seabed only matters once it is near enough to be seen
         if (look.groundY > -150f && r < 0.5f) {
-            val e = seabedThing(s, side * rng.range(12f, 90f), 0.5f)
+            val e = seabedThing(s, side, rng.range(12f, 90f), 0.5f, Footprints.AIR_CLEAR)
             e.groundBound = true
         } else if (r < 0.78f) {
-            // a school of fish swims alongside
+            // a school of fish swims alongside (and drifts away from the submarine, never into it)
             val e = sp.place(Kind.SEASCAPE, s, rng.range(0f, 30f), side * rng.range(16f, 46f), rng.range(5f, 26f), variant = OceanSpec.SCHOOL + rng.int(2))
             e.scale = rng.range(0.9f, 1.6f)
             e.speed = rng.range(8f, 18f)
             e.vx = rng.range(-1.5f, 1.5f)
+            sp.standOff(e, side, Footprints.AIR_CLEAR)
+            e.vx = abs(e.vx) * side
         } else if (r < 0.86f) {
             // a whale far off to the side
             val e = sp.place(Kind.SEASCAPE, s, rng.range(0f, 30f), side * rng.range(50f, 110f), rng.range(6f, 26f), variant = OceanSpec.WHALE)
@@ -333,27 +339,33 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
     private fun seabedDecor(s: Float): Float {
         val side = rng.sign()
         val r = rng.float()
-        val e = seabedThing(s, side * rng.range(10.5f, 46f), if (r < 0.9f) 1f else 0f)
+        val e = seabedThing(s, side, rng.range(10.5f, 46f), if (r < 0.9f) 1f else 0f, Footprints.CAR_CLEAR)
         e.groundBound = true
-        // a school of fish above the road now and then
+        // a school of fish above the road now and then (high enough not to touch the car)
         if (rng.chance(0.07f)) {
             val f = sp.place(Kind.SEASCAPE, s, rng.range(0f, 20f), side * rng.range(5f, 26f), rng.range(6f, 18f), variant = OceanSpec.SCHOOL + rng.int(2))
             f.scale = rng.range(0.9f, 1.5f)
             f.speed = rng.range(10f, 20f)
             f.vx = rng.range(-1.2f, 1.2f)
+            f.y = max(f.y, SCHOOL_LOWEST * f.scale + 2.4f)
         }
-        // signs of the lost civilisation hug the road now and then
+        // signs of the lost civilisation stand beside the road now and then
         if (rng.chance(0.045f)) {
             val ru = sp.place(Kind.SEASCAPE, s, 4f, -side * rng.range(11f, 14f), 0f, variant = OceanSpec.RUINS + rng.int(3))
             ru.groundBound = true
             ru.scale = rng.range(0.7f, 1.0f)
             ru.ry = rng.range(0f, 360f)
+            sp.standOff(ru, -side, Footprints.CAR_CLEAR)
         }
         return rng.range(8f, 18f)
     }
 
-    /** One piece of seabed scenery at lateral position [x]; [reef] is how likely coral and kelp are over rock and the rare vent or wreck. */
-    private fun seabedThing(s: Float, x: Float, reef: Float): Entity {
+    /**
+     * One piece of seabed scenery on side [side] ([dist] from the route at the nearest, pushed out until none of it comes within [clear] of
+     * the route); [reef] is how likely coral and kelp are over rock and the rare vent or wreck.
+     */
+    private fun seabedThing(s: Float, side: Float, dist: Float, reef: Float, clear: Float): Entity {
+        val x = side * dist
         val r = rng.float()
         val variant = when {
             r < 0.40f * reef -> OceanSpec.CORAL + rng.int(3)
@@ -370,7 +382,7 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
             else -> rng.range(0.7f, 1.5f)
         }
         e.ry = rng.range(0f, 360f)
-        return e
+        return sp.standOff(e, side, clear)
     }
 
     // ---- gates --------------------------------------------------------------------------------------------
@@ -422,12 +434,14 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
             }
             s += rng.range(10f, 15f)
         }
-        for (d in floatArrayOf(16f, 48f, 82f)) sp.place(Kind.SEASCAPE, gateS + d, 0f, 0f, 0f, variant = OceanSpec.BUNTING).groundBound = true
+        // (the car stops 42 m beyond the gate and the fish swim between 27 m ahead of it and 9 m behind it, so no fish goes through the flags)
+        for (d in floatArrayOf(16f, 76f, 104f)) sp.place(Kind.SEASCAPE, gateS + d, 0f, 0f, 0f, variant = OceanSpec.BUNTING).groundBound = true
         for (k in 0 until 6) {
             val f = sp.place(Kind.SEASCAPE, gateS - 70f + k * 38f, rng.range(-6f, 6f), rng.range(-15f, 15f), rng.range(5f, 14f), variant = OceanSpec.SCHOOL + rng.int(2))
             f.scale = rng.range(1.0f, 1.5f)
             f.speed = rng.range(8f, 16f)
             f.vx = rng.range(-1.2f, 1.2f)
+            f.y = max(f.y, SCHOOL_LOWEST * f.scale + 2.4f)
         }
     }
 
@@ -435,5 +449,11 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
         /** The road runs on past the end of the last leg: the gate of Atlantis is this far beyond it, and the city's middle this much further. */
         const val GATE_AHEAD = 90f
         const val CITY_BEYOND_GATE = 165f // the wall's opening, where the gate stands, is 165 m from the middle of the city
+
+        /** The part of a shark's length that hits when it swims across the lane: its body, not the thin tip of the nose and of the tail. */
+        const val SHARK_BODY = 0.82f
+
+        /** A school of fish (SCHOOL_0 / SCHOOL_1) reaches this far below its middle at scale 1. */
+        const val SCHOOL_LOWEST = 3.05f
     }
 }

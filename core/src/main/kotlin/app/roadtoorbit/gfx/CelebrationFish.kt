@@ -2,15 +2,24 @@ package app.roadtoorbit.gfx
 
 import app.roadtoorbit.math.Mathx
 import app.roadtoorbit.math.Rng
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.sin
+import kotlin.math.tanh
 
 /**
  * The little fish of the welcome in Atlantis: an escort that swims in from both sides and keeps company with the car, and fish
  * confetti that is thrown up in front of the car when it stops and then settles into schools that circle it. Every fish is a
  * function of the time alone (positions are relative to the car, which stands at the origin, nose toward -Z), so the whole show
  * needs no state and no allocation: [pose] writes where fish [i] is at time [t] and where it is a moment later, for its heading.
+ *
+ * The fish are drawn, so they must not be inside anything that is drawn: [keepClear] bends every position (the same way at any
+ * moment, so the paths stay smooth) so that the fish keep out of the car, which they swim over instead, and out of the merfolk who
+ * line the avenue, which the low ones stay between and the high ones fly over. The flags are strung across the avenue where
+ * no fish goes (OceanSpawner.welcome).
  */
 internal class CelebrationFish(seed: Int = 0xA71A) {
     companion object {
@@ -22,6 +31,17 @@ internal class CelebrationFish(seed: Int = 0xA71A) {
         const val LAUNCH_AT = 4.5f
         private const val DRAG = 1.15f
         private const val SINK = 2.6f
+
+        // what the fish keep out of (metres, relative to the car): the car's body, with the room a fish needs (a fish is up to 1.4 m long)
+        const val CAR_HALF_X = 1.4f
+        const val CAR_MID_Z = 0.1f
+        const val CAR_HALF_Z = 2.35f
+        const val CAR_ROOF = 1.6f
+        const val ROOM = 1.25f
+
+        /** The merfolk stand at |x| >= 8.7 m, 3.7 m tall with raised arms, and are up to 1.5 m wide: below [CROWD_HEIGHT] the fish stay within this. */
+        const val CROWD_FREE = 5.8f
+        const val CROWD_HEIGHT = 5.8f
     }
 
     val r = FloatArray(COUNT)
@@ -46,7 +66,7 @@ internal class CelebrationFish(seed: Int = 0xA71A) {
                 size[i] = rng.range(0.9f, 1.3f)
                 delay[i] = rng.range(0f, 2.2f)
                 ax[i] = rng.range(0f, 6.28f)
-                ay[i] = rng.range(1.2f, 5.5f)
+                ay[i] = rng.range(1.2f, 4.6f) // below the flags, which hang from 7 m
                 az[i] = -rng.range(4f, 20f)
                 rad[i] = rng.range(4f, 11f)
                 spin[i] = (if (i % 3 == 1) -1f else 1f) * rng.range(0.5f, 0.9f)
@@ -87,7 +107,7 @@ internal class CelebrationFish(seed: Int = 0xA71A) {
             val come = Mathx.smoothstep(0f, 2.6f, u)
             out[0] = Mathx.lerp(side[i] * 42f, x, come)
             out[1] = ay[i] + 0.7f * sin(1.7f * u + phase[i])
-            out[2] = z
+            out[2] = z - 50f * (1f - come) // they swim out to meet the car, along the avenue
         } else {
             val u = t - LAUNCH_AT - delay[i]
             val e = 1f - exp(-DRAG * u)
@@ -99,11 +119,24 @@ internal class CelebrationFish(seed: Int = 0xA71A) {
             val a = spin[i] * u + phase[i]
             val ox = cos(a) * rad[i]
             val oz = -8f + sin(a) * rad[i] * 0.8f
-            val oy = 4.5f + 3.2f * sin(0.7f * u + phase[i] * 2f)
+            val oy = 6.9f + 1.0f * sin(0.7f * u + phase[i] * 2f) // above the crowd
             out[0] = Mathx.lerp(bx, ox, j)
             out[1] = Mathx.lerp(by, oy, j)
             out[2] = Mathx.lerp(bz, oz, j)
         }
+    }
+
+    /** Bends position [p] (x, y, z) so that it is neither inside the car nor inside the crowd; a smooth function of the position. */
+    private fun keepClear(p: FloatArray) {
+        // the crowd lines the avenue: fish lower than its heads (4.3 m with the arms up, plus the fish's own size) stay between its two
+        // sides, fish above them may go anywhere
+        val roam = Mathx.lerp(CROWD_FREE, 40f, Mathx.smoothstep(CROWD_HEIGHT - 0.4f, CROWD_HEIGHT + 0.4f, p[1]))
+        p[0] = roam * tanh(p[0] / roam)
+        // the car: a fish that would cross it rises over it, the less the farther it is from the car's outline
+        val dx = max(0f, abs(p[0]) - (CAR_HALF_X + ROOM))
+        val dz = max(0f, abs(p[2] - CAR_MID_Z) - (CAR_HALF_Z + ROOM))
+        val away = hypot(dx, dz)
+        p[1] += max(0f, CAR_ROOF + ROOM - p[1]) * (1f - Mathx.smoothstep(0f, 1.6f, away))
     }
 
     /**
@@ -115,6 +148,8 @@ internal class CelebrationFish(seed: Int = 0xA71A) {
         if (t < start) return 0f
         place(i, t, now)
         place(i, t + 0.05f, soon)
+        keepClear(now)
+        keepClear(soon)
         // a fish grows in over its first moments instead of popping up
         return size[i] * Mathx.smoothstep(0f, 0.5f, t - start)
     }

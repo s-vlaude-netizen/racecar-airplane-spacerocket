@@ -168,6 +168,15 @@ Some of the techniques:
   the dive puts the vehicle under the surface and keeps it there, the landing is smooth and ends on the seabed inside the lanes,
   the arrival parks the car, and the depth readout runs from the surface to the trench. `./gradlew :core:test --tests '*BalanceReportTest*' -Dbalance=1`
   prints how often skilled and human-like pilots win, lose shields and die on every level and difficulty (`core/build/balance.txt`).
+* **The pass-through audit** (`PassThroughAuditTest`, with `FootprintTest`, `SceneryClearanceTest` and `HazardSettleTest`): nothing
+  that is drawn may be a ghost. The audit hooks into the renderer, takes every mesh it draws with the matrix it draws it with, and
+  tests the triangles against the vehicle (an exact triangle-box test) while the bot plays every level: scenery must stay out of the lanes
+  of the leg that will meet it (the reach of every model is measured and kept in a table, and the spawners keep the nearest part of
+  a ruin, a wreck, an island or a tree clear of the lanes, however it is turned); a hazard that is visibly inside the vehicle must have
+  hit it; a hazard's model stays within its own hit shape (thin tentacles, horns and legs excepted); hazards are not inside each other
+  (the spawner drops the few, about 5 %, that would run through another: a car through the barrier ahead of it, a mine through a mine);
+  and the fish that celebrate in Atlantis stay out of the car, the merfolk and the flags (they are a function of time alone, so a
+  quarter of an hour of the show is checked in one go).
 * **Chaos tests** play the way real devices and thumbs do - random frame times and hitches, random steering and
   taps, restarts and retries at any moment, pauses, degenerate surface sizes, GL context loss - and render *every*
   frame through `StrictGles`, a GL implementation that validates each call like a strict driver (buffer positions
@@ -204,7 +213,7 @@ with an error screen, that screen shows the same report. (Logcat has the full tr
 
 ## Status
 
-Developed and verified in a headless cloud environment: the code compiles, all tests pass (143 in `core`, 50 in `app`), Android
+Developed and verified in a headless cloud environment: the code compiles, all tests pass (150 in `core`, 50 in `app`), Android
 lint reports no errors (a few warnings, mostly the deliberate fixed-landscape, non-resizable activity), and the rendered frames
 were inspected. The first run on a real phone found an out-of-memory crash (the music was re-requested on every frame in
 the menu and on the results screens, each request synthesising a whole loop on a new thread); that is fixed and has regression

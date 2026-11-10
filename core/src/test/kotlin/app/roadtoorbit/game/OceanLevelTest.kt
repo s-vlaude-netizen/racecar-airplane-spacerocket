@@ -191,8 +191,10 @@ class OceanLevelTest {
                             assertEquals(h[1], e.y, "a ship's box rests on the waterline")
                         }
                         Kind.SHARK -> {
+                            // it swims sideways across the lane (yawed 90 degrees), and its box turns with it
                             val h = OceanSpec.SHARK_HALF[e.variant]
-                            assertEquals(h[0], e.hx); assertEquals(h[1], e.hy); assertEquals(h[2], e.hz)
+                            assertTrue(abs(abs(e.ry) - 90f) < 0.01f)
+                            assertEquals(h[2] * OceanSpawner.SHARK_BODY, e.hx); assertEquals(h[1], e.hy); assertEquals(h[0], e.hz)
                         }
                         Kind.JELLY -> assertEquals(OceanSpec.JELLY_RADIUS, e.radius)
                         Kind.BALLOON -> assertEquals(OceanSpec.FLOCK_RADIUS, e.radius, "a flock of gulls is a sphere of the contract's size")

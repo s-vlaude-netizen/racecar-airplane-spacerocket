@@ -69,6 +69,9 @@ internal object OceanSeaMeshes {
 
     private class V(val x: Float, val y: Float, val z: Float)
 
+    /** The start buoys stand this far to each side of the route: outside the waterplane's lanes (13 m) and its wings (3.1 m). */
+    private const val START_HALF_WIDTH = 17.6f
+
     private const val R2D = (180.0 / PI).toFloat()
     private const val TAU = (2.0 * PI).toFloat()
 
@@ -1073,7 +1076,9 @@ internal object OceanSeaMeshes {
     }
 
     // ---------------------------------------------------------------------------------------------------------
-    // the start line of the waterplane (START_BUOYS): two striped spar buoys, a chequered banner between them
+    // the start line of the waterplane (START_BUOYS): two striped spar buoys, a chequered strip floating on the water between them.
+    // The buoys stand outside the plane's lanes (|x| <= 13 and its wings) and the strip lies flat on the water: the waterplane flies
+    // over it, so there is nothing in the way to fly through.
     // ---------------------------------------------------------------------------------------------------------
 
     private fun startBuoys(b: MeshBuilder) {
@@ -1082,7 +1087,7 @@ internal object OceanSeaMeshes {
         val black = rgb(0x16191E)
         val steel = rgb(0x3A424C)
         for (side in intArrayOf(-1, 1)) {
-            val x = side * 7.4f
+            val x = side * START_HALF_WIDTH
             for (k in 0 until 8) { // eight bands, a little thinner toward the top
                 val r0 = 0.40f - 0.012f * k; val r1 = 0.40f - 0.012f * (k + 1)
                 val c = if (k % 2 == 0) red else white
@@ -1094,19 +1099,18 @@ internal object OceanSeaMeshes {
             b.push().translate(x, 9.24f, 0f).sphere(0.26f, 4, 8, rgb(0xFFFBC8), rgb(0xFFE15A), smooth = true).pop()
             b.push().translate(x, 9.4f, 0f).cone(0.2f, 0.2f, 8, red, red, smooth = false, cap = false).pop()
         }
-        // the banner: a white board with black squares on both faces and a red edge
-        val cols = 28; val rows = 4
-        val w = 14.0f / cols; val hh = 1.6f / rows
-        b.push().translate(0f, 8.4f, 0f).box(14.0f, 1.6f, 0.06f, white).pop()
+        // the start line: a white strip on the water, between the buoys, with black squares on top
+        val cols = 44; val rows = 2
+        val w = 2f * START_HALF_WIDTH / cols; val hh = 1.6f / rows
+        b.push().translate(0f, 0.05f, 0f).box(2f * START_HALF_WIDTH, 0.1f, 1.6f, white).pop()
         for (i in 0 until cols) for (j in 0 until rows) {
             if ((i + j) % 2 != 0) continue
-            val x0 = -7.0f + i * w; val x1 = x0 + w
-            val y0 = 7.6f + j * hh; val y1 = y0 + hh
-            b.quad(x0, y0, 0.035f, x1, y0, 0.035f, x1, y1, 0.035f, x0, y1, 0.035f, black)
-            b.quad(x1, y0, -0.035f, x0, y0, -0.035f, x0, y1, -0.035f, x1, y1, -0.035f, black)
+            val x0 = -START_HALF_WIDTH + i * w; val x1 = x0 + w
+            val z0 = -0.8f + j * hh; val z1 = z0 + hh
+            b.quad(x0, 0.105f, z1, x1, 0.105f, z1, x1, 0.105f, z0, x0, 0.105f, z0, black)
         }
-        b.push().translate(0f, 9.24f, 0f).box(14.0f, 0.16f, 0.1f, red).pop()
-        b.push().translate(0f, 7.56f, 0f).box(14.0f, 0.16f, 0.1f, red).pop()
+        b.push().translate(0f, 0.05f, -0.82f).box(2f * START_HALF_WIDTH, 0.1f, 0.06f, red).pop()
+        b.push().translate(0f, 0.05f, 0.82f).box(2f * START_HALF_WIDTH, 0.1f, 0.06f, red).pop()
     }
 
     // ---------------------------------------------------------------------------------------------------------

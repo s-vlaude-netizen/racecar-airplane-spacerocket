@@ -510,7 +510,7 @@ internal object WorldMeshes {
 
     private fun asteroid(b: MeshBuilder, variant: Int) {
         val base = intArrayOf(rgb(0x8E8579), rgb(0x7A736C), rgb(0x9A8F80), rgb(0x6F6B73))[variant % 4]
-        b.icosphere(1f, 2, base, 0.30f + 0.04f * variant, variant * 17 + 5, 0.16f)
+        b.icosphere(1f, 2, base, 0.16f + 0.02f * variant, variant * 17 + 5, 0.16f)
     }
 
     private fun satellite(b: MeshBuilder) {
