@@ -30,7 +30,7 @@ class ReportScreenTest {
     private val u = h / 100f
 
     private val report = """
-        Road to Orbit report
+        Transformer Triathlon report
         The app was closed by an uncaught exception on thread "music" at 2026-10-06 15:20:11
         java.lang.OutOfMemoryError: Failed to allocate a 32 byte allocation with 294720 free bytes and 287KB until OOM
           at app.roadtoorbit.audio.MusicSynth.render(MusicSynth.kt:31)

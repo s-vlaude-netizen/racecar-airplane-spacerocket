@@ -27,5 +27,5 @@ jobs:
       - name: Upload the APK
         uses: actions/upload-artifact@v4
         with:
-          name: road-to-orbit-apk
+          name: transformer-triathlon-apk
           path: app/build/outputs/apk/release/*.apk

@@ -92,7 +92,7 @@ object CrashReporter {
 
     internal fun format(kind: String, threadName: String, error: Throwable): String {
         val sb = StringBuilder(2048)
-        sb.append("Road to Orbit report\n")
+        sb.append("Transformer Triathlon report\n")
         sb.append(kind).append(" on thread \"").append(threadName).append("\" at ")
             .append(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())).append('\n')
         appendError(sb, error, 24)

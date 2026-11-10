@@ -28,7 +28,7 @@ class CrashReporterTest {
         CrashReporter.note("action PLAY")
         val text = CrashReporter.format("The app was closed", "GLThread 12", IllegalStateException("boom", IOException("disk gone")))
         for (part in listOf(
-            "Road to Orbit report", "The app was closed on thread \"GLThread 12\"", "java.lang.IllegalStateException: boom",
+            "Transformer Triathlon report", "The app was closed on thread \"GLThread 12\"", "java.lang.IllegalStateException: boom",
             "Caused by: java.io.IOException: disk gone", "Device:", "Memory: Java heap", "Threads:", "Recent: ", "phase MENU leg 0 > action PLAY",
         )) assertTrue("missing '$part' in:\n$text", text.contains(part))
         assertTrue("a report stays small enough to read and paste (${text.length})", text.length <= 5_000)

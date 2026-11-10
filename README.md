@@ -1,6 +1,6 @@
-# Road to Orbit 🚗 ✈️ 🚀
+# Transformer Triathlon 🚗 ✈️ 🚀
 
-A 3D Android game where **one vehicle transforms three times**: you start as a race car, morph into an
+A 3D Android game where **one vehicle transforms three times** – three disciplines, one vehicle: you start as a race car, morph into an
 airplane to climb above the clouds, then into a space rocket to reach another world – where the rocket lands and
 turns back into a car for a victory drive. There are three levels: **the Moon** (from a mountain highway on Earth),
 **Mars** (across the red desert and through a dust storm to Phobos, with Mars filling the sky) and **The Deep**, where
@@ -64,10 +64,14 @@ is the Kotlin standard library (the whole APK is under 1 MB).
 
 ## Install
 
-Grab the APK from [`dist/road-to-orbit.apk`](dist/road-to-orbit.apk) (or from the *Actions → Build* run
+Grab the APK from [`dist/transformer-triathlon.apk`](dist/transformer-triathlon.apk) (or from the *Actions → Build* run
 artifacts) and install it on an Android 8.0+ phone (sideload: allow "install unknown apps" for your
 browser/file manager). It needs OpenGL ES 3.0, which every phone from the last decade has. The game runs
 in landscape.
+
+The game used to be called *Road to Orbit*. The technical ids (the package `app.roadtoorbit`, the settings file and the
+signing key) keep the old name on purpose, so that the update installs over an older version and keeps its saved scores
+and settings.
 
 ## How to play
 

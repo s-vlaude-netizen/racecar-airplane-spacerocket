@@ -202,7 +202,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         val text = bridge.fatalDetails ?: bridge.fatalError ?: bridge.crashReport ?: return
         try {
             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("Road to Orbit report", text))
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("Transformer Triathlon report", text))
             copiedAt = SystemClock.uptimeMillis()
         } catch (_: Throwable) {
             // no clipboard: the report is on screen anyway
@@ -472,19 +472,22 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         txt.textSize = 13.5f * u
         txt.textSkewX = -0.18f
         txt.letterSpacing = 0.04f
+        // the title shrinks to fit narrow screens
+        val titleWidth = txt.measureText(TITLE)
+        if (titleWidth > w * 0.86f) txt.textSize = 13.5f * u * (w * 0.86f / titleWidth)
         val ty = insetT + 19f * u
         txt.style = Paint.Style.STROKE
         txt.strokeWidth = 1.6f * u
         txt.color = Color.argb(200, 10, 8, 40)
         txt.shader = null
-        c.drawText("ROAD TO ORBIT", cx + 0.5f * u, ty + 0.6f * u, txt)
+        c.drawText(TITLE, cx + 0.5f * u, ty + 0.6f * u, txt)
         txt.style = Paint.Style.FILL
         txt.shader = LinearGradient(0f, ty - 10f * u, 0f, ty + 1f * u, intArrayOf(Color.rgb(255, 255, 255), Color.rgb(140, 225, 255), Color.rgb(255, 160, 90)), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
-        c.drawText("ROAD TO ORBIT", cx, ty, txt)
+        c.drawText(TITLE, cx, ty, txt)
         txt.shader = null
         txt.textSkewX = 0f
         txt.letterSpacing = 0f
-        label(c, "RACE   ·   FLY   ·   LAUNCH", cx, ty + 5.6f * u, 3f * u, Color.argb(230, 230, 220, 255), Paint.Align.CENTER, sans, spacing = 0.25f)
+        label(c, "RACE   ·   FLY   ·   DIVE   ·   LAUNCH", cx, ty + 5.6f * u, 3f * u, Color.argb(230, 230, 220, 255), Paint.Align.CENTER, sans, spacing = 0.25f)
 
         // play prompt
         val pulse = 0.5f + 0.5f * sin(t() * 3.2f)
@@ -968,6 +971,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
     }
 
     private companion object {
+        const val TITLE = "TRANSFORMER TRIATHLON"
         const val PLAY_HIT = 100
         const val PILL_HIT = 200
         const val BTN_RESUME = 1
