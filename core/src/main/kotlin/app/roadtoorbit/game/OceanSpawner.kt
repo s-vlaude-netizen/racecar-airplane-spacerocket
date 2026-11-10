@@ -401,7 +401,33 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
                 sp.place(Kind.GATE_ARCH, leg.length + GATE_AHEAD, 0f, 0f, 0f, variant = 2).groundBound = true
                 val city = sp.place(Kind.MOON, leg.length + GATE_AHEAD + CITY_BEYOND_GATE, 0f, 0f, 0f)
                 city.groundBound = true
+                welcome(leg.length + GATE_AHEAD)
             }
+        }
+    }
+
+    /**
+     * The people of Atlantis have come to welcome the traveller: merfolk line the avenue on both sides from just before the gate
+     * (their [Entity.param] is the phase of their cheering), flags are strung across it, and schools of fish swim above it.
+     */
+    private fun welcome(gateS: Float) {
+        var s = gateS - 26f
+        while (s < gateS + 125f) {
+            for (side in intArrayOf(-1, 1)) {
+                val e = sp.place(Kind.SEASCAPE, s + rng.range(-3f, 3f), 0f, side * rng.range(8.7f, 11.5f), 0.15f, variant = OceanSpec.MERFOLK + rng.int(3))
+                e.groundBound = true
+                e.ry = -side * (90f + rng.range(-35f, 35f)) // turned toward the road
+                e.scale = rng.range(0.92f, 1.15f)
+                e.param = rng.range(0f, 6.28f)
+            }
+            s += rng.range(10f, 15f)
+        }
+        for (d in floatArrayOf(16f, 48f, 82f)) sp.place(Kind.SEASCAPE, gateS + d, 0f, 0f, 0f, variant = OceanSpec.BUNTING).groundBound = true
+        for (k in 0 until 6) {
+            val f = sp.place(Kind.SEASCAPE, gateS - 70f + k * 38f, rng.range(-6f, 6f), rng.range(-15f, 15f), rng.range(5f, 14f), variant = OceanSpec.SCHOOL + rng.int(2))
+            f.scale = rng.range(1.0f, 1.5f)
+            f.speed = rng.range(8f, 16f)
+            f.vx = rng.range(-1.2f, 1.2f)
         }
     }
 

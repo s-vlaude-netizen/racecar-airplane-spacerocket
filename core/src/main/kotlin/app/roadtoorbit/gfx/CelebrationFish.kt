@@ -1,0 +1,121 @@
+package app.roadtoorbit.gfx
+
+import app.roadtoorbit.math.Mathx
+import app.roadtoorbit.math.Rng
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
+
+/**
+ * The little fish of the welcome in Atlantis: an escort that swims in from both sides and keeps company with the car, and fish
+ * confetti that is thrown up in front of the car when it stops and then settles into schools that circle it. Every fish is a
+ * function of the time alone (positions are relative to the car, which stands at the origin, nose toward -Z), so the whole show
+ * needs no state and no allocation: [pose] writes where fish [i] is at time [t] and where it is a moment later, for its heading.
+ */
+internal class CelebrationFish(seed: Int = 0xA71A) {
+    companion object {
+        const val ESCORT = 30
+        const val CONFETTI = 96
+        const val COUNT = ESCORT + CONFETTI
+
+        /** Seconds after the start of the arrival at which the confetti is thrown. */
+        const val LAUNCH_AT = 4.5f
+        private const val DRAG = 1.15f
+        private const val SINK = 2.6f
+    }
+
+    val r = FloatArray(COUNT)
+    val g = FloatArray(COUNT)
+    val b = FloatArray(COUNT)
+    private val size = FloatArray(COUNT)
+    private val delay = FloatArray(COUNT)
+    private val phase = FloatArray(COUNT)
+    private val ax = FloatArray(COUNT); private val ay = FloatArray(COUNT); private val az = FloatArray(COUNT) // escort: angle, height, depth; confetti: start
+    private val vx = FloatArray(COUNT); private val vy = FloatArray(COUNT); private val vz = FloatArray(COUNT)
+    private val rad = FloatArray(COUNT)
+    private val spin = FloatArray(COUNT)
+    private val side = FloatArray(COUNT)
+
+    init {
+        val rng = Rng(seed.toLong())
+        for (i in 0 until COUNT) {
+            // golden-ratio hues: neighbours never share a colour
+            hsv((i * 0.61803f) % 1f, 0.85f, 1.1f, i)
+            phase[i] = rng.range(0f, 6.28f)
+            if (i < ESCORT) {
+                size[i] = rng.range(0.9f, 1.3f)
+                delay[i] = rng.range(0f, 2.2f)
+                ax[i] = rng.range(0f, 6.28f)
+                ay[i] = rng.range(1.2f, 5.5f)
+                az[i] = -rng.range(4f, 20f)
+                rad[i] = rng.range(4f, 11f)
+                spin[i] = (if (i % 3 == 1) -1f else 1f) * rng.range(0.5f, 0.9f)
+                side[i] = rng.sign()
+            } else {
+                size[i] = rng.range(0.7f, 1.2f)
+                delay[i] = rng.range(0f, 0.4f)
+                ax[i] = rng.range(-6f, 6f); ay[i] = 0.8f; az[i] = -14f + rng.range(-8f, 8f)
+                vx[i] = rng.range(-6f, 6f); vy[i] = rng.range(8f, 15f); vz[i] = rng.range(-5f, 5f)
+                rad[i] = rng.range(7f, 20f)
+                spin[i] = (if (rng.chance(0.5f)) -1f else 1f) * rng.range(0.3f, 0.65f)
+                ay[i] = ay[i]
+            }
+        }
+    }
+
+    private fun hsv(h: Float, s: Float, v: Float, i: Int) {
+        val k = (h * 6f).toInt()
+        val f = h * 6f - k
+        val p = v * (1f - s); val q = v * (1f - f * s); val t = v * (1f - (1f - f) * s)
+        when (k % 6) {
+            0 -> { r[i] = v; g[i] = t; b[i] = p }
+            1 -> { r[i] = q; g[i] = v; b[i] = p }
+            2 -> { r[i] = p; g[i] = v; b[i] = t }
+            3 -> { r[i] = p; g[i] = q; b[i] = v }
+            4 -> { r[i] = t; g[i] = p; b[i] = v }
+            else -> { r[i] = v; g[i] = p; b[i] = q }
+        }
+    }
+
+    private fun place(i: Int, t: Float, out: FloatArray) {
+        if (i < ESCORT) {
+            val u = t - delay[i]
+            val a = ax[i] + spin[i] * u
+            val x = cos(a) * rad[i]
+            val z = az[i] + 3.5f * sin(1.1f * u + phase[i] * 1.3f)
+            // they swim in from the side they come from
+            val come = Mathx.smoothstep(0f, 2.6f, u)
+            out[0] = Mathx.lerp(side[i] * 42f, x, come)
+            out[1] = ay[i] + 0.7f * sin(1.7f * u + phase[i])
+            out[2] = z
+        } else {
+            val u = t - LAUNCH_AT - delay[i]
+            val e = 1f - exp(-DRAG * u)
+            val bx = ax[i] + vx[i] * e / DRAG + 1.3f * sin(2.6f * u + phase[i])
+            val by = ay[i] + vy[i] * e / DRAG - SINK * (u / DRAG - e / (DRAG * DRAG))
+            val bz = az[i] + vz[i] * e / DRAG + 1.1f * cos(2.1f * u + phase[i])
+            // after a few seconds the confetti joins the schools that circle the car
+            val j = Mathx.smoothstep(2.4f, 4.8f, u)
+            val a = spin[i] * u + phase[i]
+            val ox = cos(a) * rad[i]
+            val oz = -8f + sin(a) * rad[i] * 0.8f
+            val oy = 4.5f + 3.2f * sin(0.7f * u + phase[i] * 2f)
+            out[0] = Mathx.lerp(bx, ox, j)
+            out[1] = Mathx.lerp(by, oy, j)
+            out[2] = Mathx.lerp(bz, oz, j)
+        }
+    }
+
+    /**
+     * Writes the position of fish [i] at time [t] to [now] and where it will be 0.05 s later to [soon]; returns its size (0 =
+     * not there yet, so do not draw it).
+     */
+    fun pose(i: Int, t: Float, now: FloatArray, soon: FloatArray): Float {
+        val start = if (i < ESCORT) delay[i] else LAUNCH_AT + delay[i]
+        if (t < start) return 0f
+        place(i, t, now)
+        place(i, t + 0.05f, soon)
+        // a fish grows in over its first moments instead of popping up
+        return size[i] * Mathx.smoothstep(0f, 0.5f, t - start)
+    }
+}

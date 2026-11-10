@@ -145,6 +145,9 @@ class Game(seed: Long = 1L) {
     private var perfectLaunch = false
     private var xfStartY = 0f
 
+    /** Seconds since the arrival at the destination began (the finale, then the victory); the welcome in Atlantis is a function of it. */
+    val celebrationTime: Float get() = when (phase) { Phase.FINALE -> finaleT; Phase.VICTORY -> finaleT + phaseTime; else -> 0f }
+
     val leg: LegSpec get() = level.legs[legIndex]
     val journeyProgress: Float
         get() = when (phase) {
@@ -882,6 +885,7 @@ class Game(seed: Long = 1L) {
         player.invuln = 99f
         player.boostFactor = 0f
         player.boosting = false
+        welcomed = false; fireworkIn = 0f; fireworkChimes = 0
         removeWhere { it.kind.category == Category.HAZARD || it.kind.category == Category.PICKUP || it.kind == Kind.PLANET }
         finaleGroundY = if (level.finale == Finale.ARRIVAL) 0f else -330f
         flash = 0.6f
@@ -968,10 +972,35 @@ class Game(seed: Long = 1L) {
         if (t >= 7.4f) completeRun()
     }
 
+    private var welcomed = false
+    private var fireworkIn = 0f
+    private var fireworkChimes = 0
+
+    /** The welcome: a popup as the car comes to a stop, and from then on bursts of fireworks over the city (a chime for the first few). */
+    private fun celebrate(dt: Float, t: Float) {
+        if (t < WELCOME_AT) return
+        if (!welcomed) {
+            welcomed = true
+            popup("WELCOME TO ATLANTIS!", COLOR_GOLD, 3.8f, true)
+            sfx(Sfx.ZONE)
+            flash = max(flash, 0.5f)
+        }
+        fireworkIn -= dt
+        if (fireworkIn > 0f) return
+        fireworkIn = rng.range(0.45f, 0.85f)
+        val c = FIREWORK_COLOURS[rng.int(FIREWORK_COLOURS.size)]
+        // in front of the city's dome and low enough for the camera, which looks along the avenue, to see them
+        val x = rng.range(-26f, 26f); val y = rng.range(8f, 19f); val z = -rng.range(16f, 55f)
+        particles.burst(x, y, z, 48, 16f, 1.6f, 1.0f, c, Col.withAlpha(c, 0f), true, -2.5f, 1.3f)
+        particles.burst(x, y, z, 14, 7f, 1.2f, 0.6f, Col.rgb(0xFFFFFF), Col.withAlpha(c, 0f), true, -2.5f, 1.3f)
+        if (fireworkChimes < 7) { fireworkChimes++; sfx(Sfx.RING) }
+    }
+
     /** The last leg was a drive: the car rolls on through the destination's gate, slows to a stop and the camera swings round it. */
     private fun updateArrival(dt: Float) {
         finaleT += dt
         val t = finaleT
+        celebrate(dt, t)
         val p = player
         val v = p.visual
         v.time = clock
@@ -1019,7 +1048,7 @@ class Game(seed: Long = 1L) {
         wheelSpin %= 3600f
         v.wheelSpinDeg = wheelSpin
         travelled += p.speed * dt
-        if (level.finale == Finale.ARRIVAL) legDist += p.speed * dt
+        if (level.finale == Finale.ARRIVAL) { legDist += p.speed * dt; celebrate(dt, celebrationTime) }
         updateEntities(dt)
         particlesUpdate(dt, p.speed)
     }
@@ -1197,6 +1226,10 @@ class Game(seed: Long = 1L) {
 
         /** Where the submarine's dive takes it (y) and how far from the middle the car may be when it lands on the seabed. */
         const val DIVE_Y = 9f
+
+        /** The welcome in Atlantis begins when the car has come to a stop. */
+        const val WELCOME_AT = 4.4f
+        private val FIREWORK_COLOURS = intArrayOf(Col.rgb(0xFFD44A), Col.rgb(0xFF5CB8), Col.rgb(0x4FE6FF), Col.rgb(0x7DFF9A), Col.rgb(0xFF8A3C), Col.rgb(0xB07CFF))
 
         /** The waterplane skims the waves below this height; it earns this many points a second, with a bonus popup every period. */
         const val SKIM_Y = 3.4f

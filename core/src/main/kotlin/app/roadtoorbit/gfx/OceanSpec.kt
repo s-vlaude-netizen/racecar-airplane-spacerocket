@@ -102,6 +102,8 @@ object OceanSpec {
     const val RUINS = 11 // 11..13: Atlantean columns and arches, 6 - 14 m high
     const val SCHOOL = 14 // 14..15: a school of small fish, authored around its centre, within 6 m of it
     const val WHALE = 16 // a whale, authored around its centre: 28 m long, 7 m wide, 6 m high, swimming toward -Z
+    const val MERFOLK = 17 // 17..19: a merperson standing on the tip of the tail, 3.3 m tall, arms raised, facing -Z (the welcome of Atlantis)
+    const val BUNTING = 20 // a garland of flags between two poles 28 m apart across the avenue, in the XY plane, standing on y = 0, 11 m high
 
     val SEASCAPE: Array<MeshId> = arrayOf(
         MeshId.ISLAND_0, MeshId.ISLAND_1, MeshId.ISLAND_2,
@@ -112,6 +114,8 @@ object OceanSpec {
         MeshId.RUINS_0, MeshId.RUINS_1, MeshId.RUINS_2,
         MeshId.SCHOOL_0, MeshId.SCHOOL_1,
         MeshId.WHALE,
+        MeshId.MERFOLK_0, MeshId.MERFOLK_1, MeshId.MERFOLK_2,
+        MeshId.BUNTING,
     )
 
     // ----------------------------------------------------------------------------------------------------------
@@ -135,6 +139,7 @@ internal object OceanMeshes {
         when {
             o in MeshId.PONTOON.ordinal..MeshId.LIGHT_CONE.ordinal -> OceanVehicleMeshes.build(id, b)
             o in MeshId.SEASTACK_0.ordinal..MeshId.CORAL_2.ordinal -> OceanSeaMeshes.build(id, b)
+            o >= MeshId.MERFOLK_0.ordinal -> OceanCelebrationMeshes.build(id, b)
             else -> OceanFloorMeshes.build(id, b)
         }
     }

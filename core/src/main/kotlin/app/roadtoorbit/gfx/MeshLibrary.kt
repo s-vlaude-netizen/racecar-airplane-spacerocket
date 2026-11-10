@@ -46,6 +46,9 @@ enum class MeshId {
     SUBCAR_0, SUBCAR_1, SUBCAR_2, SUBHAULER_0, SUBHAULER_1, SUBHAULER_2, SUBVAN_0, SUBVAN_1, SUBVAN_2,
     CONTAINER, KELP_TUFT, CRAB_0, CRAB_1, ROAD_SEA, ROAD_SEA_GLOW, VENT, WRECK_0, WRECK_1, RUINS_0, RUINS_1, RUINS_2,
     ATLANTIS, ATLANTIS_LIGHTS, ATLANTIS_GATE,
+
+    // The welcome in Atlantis: the merfolk who cheer along the avenue, a little fish that serves as confetti, bunting over the road (OceanCelebrationMeshes)
+    MERFOLK_0, MERFOLK_1, MERFOLK_2, CONFETTI_FISH, BUNTING,
 }
 
 /**

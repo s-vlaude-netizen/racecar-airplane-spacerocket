@@ -55,7 +55,7 @@ is the Kotlin standard library (the whole APK is under 1 MB).
     <td><img src="docs/screenshots/16-deep-trench-run.jpg" alt="Level 3, stage 3: Trench Run"><br><sub><b>3 · Trench Run</b> – the submarine lands on the seabed and drives the sunken highway, past crabs and submersible traffic</sub></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/17-deep-atlantis.jpg" alt="Arriving at Atlantis"><br><sub><b>Atlantis</b> – the road leads through the great gate into the lost city</sub></td>
+    <td colspan="2"><img src="docs/screenshots/17-deep-atlantis.jpg" alt="Arriving at Atlantis"><br><sub><b>Atlantis</b> – through the great gate into the lost city, where merfolk cheer along the avenue, flags hang over the road and colourful fish are thrown like confetti</sub></td>
   </tr>
 </table>
 
@@ -89,7 +89,7 @@ stage is a drive, so the game ends with an arrival at Atlantis instead of a land
 |---|---|---|
 | 1 | a waterplane | **Wave Runner** – skim the sea: fly through rings low over the waves, dodge sea stacks, ships, gulls, squalls and rival seaplanes. Flying below about 3 m earns a **WAVE SKIM** bonus. Tap TRANSFORM in the zone to dive (a **PERFECT DIVE** pays +1000). |
 | 2 | a submarine-rocket | **Deep Dive** – weave between sea mines, sharks and jellyfish, collect pearls and fly through rings while the light fades. The next gate is where the seabed comes up to meet you (**PERFECT LANDING**). |
-| 3 | a seabed car | **Trench Run** – drive the sunken highway in the beam of your lights: submersible traffic, half-buried containers, kelp, mines on chains and crabs that scuttle across the road. Atlantis is at the end. |
+| 3 | a seabed car | **Trench Run** – drive the sunken highway in the beam of your lights: submersible traffic, half-buried containers, kelp, mines on chains and crabs that scuttle across the road. Atlantis is at the end, and the whole city turns out to welcome you: merfolk cheer along the avenue, flags hang over the road, a school of colourful fish swims in to meet you and fish confetti and fireworks fill the water. |
 
 * **Steer** – drag anywhere on the left half of the screen (a floating stick). Left/right in the car, left/right + up/down in the air and in space. Optional **tilt steering** on the menu: your attitude at GO is neutral (it follows your grip during the countdown, so settle in however you like); tilt the right edge down to steer right, the top edge toward you to climb. A finger on the stick always wins.
 * **Boost** – hold the BOOST button. Nitro, orbs and crystals refill the meter.
@@ -200,7 +200,7 @@ with an error screen, that screen shows the same report. (Logcat has the full tr
 
 ## Status
 
-Developed and verified in a headless cloud environment: the code compiles, all tests pass (139 in `core`, 50 in `app`), Android
+Developed and verified in a headless cloud environment: the code compiles, all tests pass (143 in `core`, 50 in `app`), Android
 lint reports no errors (a few warnings, mostly the deliberate fixed-landscape, non-resizable activity), and the rendered frames
 were inspected. The first run on a real phone found an out-of-memory crash (the music was re-requested on every frame in
 the menu and on the results screens, each request synthesising a whole loop on a new thread); that is fixed and has regression

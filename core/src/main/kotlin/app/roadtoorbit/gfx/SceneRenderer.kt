@@ -1,6 +1,7 @@
 package app.roadtoorbit.gfx
 
 import app.roadtoorbit.game.Entity
+import app.roadtoorbit.game.Finale
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.Kind
 import app.roadtoorbit.game.OceanSpawner
@@ -12,6 +13,7 @@ import app.roadtoorbit.math.Mathx
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -61,6 +63,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         terrain(g)
         road(g)
         entities(g)
+        celebration(g)
         showroomPlatform(g)
         shadow(g)
         vehicleDraw(g)
@@ -221,6 +224,37 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         }
     }
 
+    // ---- the welcome in Atlantis ----------------------------------------------------------------------
+
+    private val fishField = CelebrationFish()
+    private val fishNow = FloatArray(3)
+    private val fishSoon = FloatArray(3)
+
+    /** How many fish of the welcome were drawn in the last frame. */
+    internal var celebrationFish = 0
+        private set
+
+    /** The escort and the confetti of fish that greet the car at the end of a level that ends in an arrival. */
+    private fun celebration(g: Game) {
+        celebrationFish = 0
+        if (g.level.finale != Finale.ARRIVAL || (g.phase != Phase.FINALE && g.phase != Phase.VICTORY)) return
+        val t = g.celebrationTime
+        val mesh = renderer.meshes[MeshId.CONFETTI_FISH]
+        val px = g.player.x
+        for (i in 0 until CelebrationFish.COUNT) {
+            val size = fishField.pose(i, t, fishNow, fishSoon)
+            if (size <= 0.01f) continue
+            val dx = fishSoon[0] - fishNow[0]; val dy = fishSoon[1] - fishNow[1]; val dz = fishSoon[2] - fishNow[2]
+            val yaw = atan2(-dx, -dz) * RAD2DEG
+            val pitch = atan2(dy, hypot(dx, dz)) * RAD2DEG
+            mat.reset().tint(fishField.r[i], fishField.g[i], fishField.b[i]).gloss(0.5f, 40f)
+            mat.emissive = 0.32f; mat.fogScale = 0.5f
+            Mat4.setTrs(m, px + fishNow[0], fishNow[1], fishNow[2], pitch, yaw, 0f, size, size, size)
+            renderer.drawLit(mesh, m, mat)
+            celebrationFish++
+        }
+    }
+
     // ---- entities --------------------------------------------------------------------------------
 
     private fun entities(g: Game) {
@@ -355,6 +389,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         var sy = e.scale
         var sz = e.scale
         var ty = y
+        var yaw = e.ry
         when (e.kind) {
             Kind.TRAFFIC -> {
                 id = when (e.variant) { 4 -> SUB_HAULERS[e.tint % 3]; 5 -> SUB_VANS[e.tint % 3]; else -> SUB_CARS[e.tint % 3] }
@@ -399,7 +434,9 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                 Mat4.setTrs(m, e.x, ty, e.z, 0f, 0f, 0f, 1f, 1f, 1f)
                 mat.tint(0.82f, 0.88f, 0.94f); mat.gloss(0.35f, 30f); mat.emissive = 0.12f; mat.fogScale = 0.3f
                 renderer.drawLit(renderer.meshes[MeshId.ATLANTIS], m, mat)
-                mat.reset(); mat.emissive = 1f; mat.fogScale = 0.3f
+                // its lights pulse in the welcome
+                val pulse = if (g.phase == Phase.FINALE || g.phase == Phase.VICTORY) 1.1f + 0.22f * sin(g.clock * 4.5f) else 1f
+                mat.reset().tint(pulse, pulse, pulse); mat.emissive = 1f; mat.fogScale = 0.3f
                 renderer.drawLit(renderer.meshes[MeshId.ATLANTIS_LIGHTS], m, mat)
                 return true
             }
@@ -411,11 +448,18 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                 if (e.variant == OceanSpec.VENT) mat.emissive = 0.25f
                 if (e.variant == OceanSpec.SCHOOL || e.variant == OceanSpec.SCHOOL + 1) { mat.emissive = 0.15f; mat.gloss(0.6f, 50f) }
                 if (e.variant == OceanSpec.WHALE) { mat.gloss(0.25f, 30f); mat.fogScale = 0.5f }
+                if (e.variant in OceanSpec.MERFOLK..OceanSpec.MERFOLK + 2) {
+                    // the merfolk cheer: they bob on their tails and turn a little this way and that
+                    mat.tint(1.25f, 1.15f, 1.05f); mat.gloss(0.3f, 24f); mat.emissive = 0.3f; mat.fogScale = 0.5f
+                    ty += 0.16f * sin(e.age * 3.4f + e.param) + 0.12f
+                    yaw += 11f * sin(e.age * 2.3f + e.param * 1.7f)
+                }
+                if (e.variant == OceanSpec.BUNTING) { mat.emissive = 0.3f; mat.fogScale = 0.5f }
             }
             Kind.ROCK -> { id = ROCKS[e.variant % 3]; mat.tint(0.62f, 0.8f, 0.84f) }
             else -> return false
         }
-        Mat4.setTrs(m, e.x, ty, e.z, e.rx, e.ry, e.rz, sx, sy, sz)
+        Mat4.setTrs(m, e.x, ty, e.z, e.rx, yaw, e.rz, sx, sy, sz)
         renderer.drawLit(renderer.meshes[id], m, mat)
         return true
     }
@@ -487,6 +531,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
 
     private companion object {
         const val SEG = 24f
+        const val RAD2DEG = 57.29578f
         val SEDANS = arrayOf(MeshId.SEDAN_0, MeshId.SEDAN_1, MeshId.SEDAN_2, MeshId.SEDAN_3, MeshId.SEDAN_4, MeshId.SEDAN_5)
         val TRUCKS = arrayOf(MeshId.TRUCK_0, MeshId.TRUCK_1, MeshId.TRUCK_2)
         val VANS = arrayOf(MeshId.VAN_0, MeshId.VAN_1, MeshId.VAN_2)
