@@ -101,8 +101,15 @@ class LevelUiTest {
         bs = buttons(hud)
         assertTrue("buttons: $bs", bs.any { it.first == "NEXT LEVEL: THE DEEP" })
 
+        // the deep leads on to the way home
+        bridge.hud.latest.apply { levelIndex = 2; levelName = "THE DEEP"; nextLevelName = "HOMECOMING" }
+        hud = view(bridge)
+        bs = buttons(hud)
+        assertTrue("buttons: $bs", bs.any { it.first == "NEXT LEVEL: HOMECOMING" })
+        for ((name, r) in bs) assertTrue("$name is on the screen: $r", r.left >= 0 && r.right <= w && r.top >= 0 && r.bottom <= h)
+
         // on the last level there is nowhere further to go
-        bridge.hud.latest.apply { levelIndex = 2; levelName = "THE DEEP"; nextLevelName = "" }
+        bridge.hud.latest.apply { levelIndex = 3; levelName = "HOMECOMING"; nextLevelName = "" }
         hud = view(bridge)
         bs = buttons(hud)
         assertTrue("buttons: $bs", bs.none { it.first.startsWith("NEXT LEVEL") })
@@ -176,6 +183,8 @@ class LevelUiTest {
         r.handle(UiAction.CYCLE_LEVEL)
         assertEquals(2, r.game.level.index)
         r.handle(UiAction.CYCLE_LEVEL)
+        assertEquals(3, r.game.level.index)
+        r.handle(UiAction.CYCLE_LEVEL)
         assertEquals("cycling wraps round", 0, r.game.level.index)
         assertEquals(0, prefs.level)
 
@@ -230,7 +239,13 @@ class LevelUiTest {
 
         winWithoutSteering(r)
         r.handle(UiAction.NEXT_LEVEL)
+        assertEquals(3, r.game.level.index)
+        assertEquals(3, prefs.level)
+        assertEquals(Phase.COUNTDOWN, r.game.phase)
+
+        winWithoutSteering(r)
+        r.handle(UiAction.NEXT_LEVEL)
         assertEquals("there is no level after the last", Phase.VICTORY, r.game.phase)
-        assertEquals(2, r.game.level.index)
+        assertEquals(3, r.game.level.index)
     }
 }

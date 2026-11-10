@@ -124,13 +124,17 @@ class CameraRig {
     private fun arrivalShot(g: Game) {
         val c = camera
         val p = g.player
-        val swing = Mathx.smoother((g.finaleT - 0.5f) / 6.5f)
+        // a plane that has landed is bigger than a car and stands on the island's runway
+        val plane = g.level.finale == app.roadtoorbit.game.Finale.AIRSTRIP
+        val k = if (plane) 1.4f else 1f
+        val ground = if (plane) AirfieldSpec.STRIP_Y else 0f
+        val swing = Mathx.smoother(((if (plane) g.celebrationTime - Game.WELCOME_AT + 1.5f else g.finaleT) - 0.5f) / 6.5f)
         // only a little way round: the city has to stay behind the car, on the side of the frame the results panel leaves free
         val az = swing * 0.6f + (if (g.phase == Phase.VICTORY) 0.05f * sin(g.clock * 0.4f) else 0f)
-        val r = Mathx.lerp(14f, 9.5f, swing)
+        val r = Mathx.lerp(14f, 9.5f, swing) * k
         c.ex = sin(az) * r
         c.ez = cos(az) * r
-        c.ey = Mathx.lerp(4.6f, 2.0f, swing)
+        c.ey = ground + Mathx.lerp(4.6f, 2.0f, swing) * k
         c.tx = 0f
         c.ty = p.y + 0.9f
         c.tz = Mathx.lerp(-8f, -3f, swing)
@@ -146,7 +150,7 @@ class CameraRig {
     }
 
     private fun finaleShot(g: Game) {
-        if (g.level.finale == app.roadtoorbit.game.Finale.ARRIVAL) {
+        if (g.level.finale != app.roadtoorbit.game.Finale.LANDING) {
             arrivalShot(g)
             return
         }

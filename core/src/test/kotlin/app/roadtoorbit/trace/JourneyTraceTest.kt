@@ -88,7 +88,37 @@ class JourneyTraceTest {
             Capture("victory") { it.phase == Phase.VICTORY && it.phaseTime > 1.5f },
             Capture("victory_late") { it.phase == Phase.VICTORY && it.phaseTime > 7f },
         )
-        val captures = if (game.level.world == app.roadtoorbit.game.World.OCEAN) oceanCaptures else listOf(
+        // homecoming goes the other way: out of Atlantis, up through the water, through the surface, over the sea and down on the island's airstrip
+        val ascentCaptures = listOf(
+            Capture("countdown") { it.phase == Phase.COUNTDOWN && it.phaseTime > 1.4f },
+            Capture("trench_250") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 250f },
+            Capture("trench_traffic") { g -> g.phase == Phase.RUN && g.legIndex == 0 && near(g, Kind.TRAFFIC, -90f, -45f, 6f) },
+            Capture("trench_crab") { g -> g.phase == Phase.RUN && g.legIndex == 0 && g.entities.any { e -> e.kind == Kind.CRAB && e.vx != 0f && e.z > -60f && e.z < -25f } },
+            Capture("trench_1800") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 1800f },
+            Capture("launch_zone") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > it.leg.length - 100f },
+            Capture("launch_a") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.3f },
+            Capture("launch_b") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.6f },
+            Capture("launch_c") { it.xf.active && it.legIndex == 1 && it.xf.t > 0.95f },
+            Capture("ascent_300") { it.phase == Phase.RUN && it.legIndex == 1 && !it.xf.active && it.legDist > 300f },
+            Capture("ascent_shark") { g -> g.phase == Phase.RUN && g.legIndex == 1 && !g.xf.active && near(g, Kind.SHARK, -70f, -30f, 30f, 12f) },
+            Capture("ascent_1800") { it.phase == Phase.RUN && it.legIndex == 1 && it.legDist > 1800f },
+            Capture("ascent_3300") { it.phase == Phase.RUN && it.legIndex == 1 && it.legDist > 3500f },
+            Capture("breach_a") { it.xf.active && it.legIndex == 2 && it.xf.t > 0.3f },
+            Capture("breach_b") { it.xf.active && it.legIndex == 2 && it.xf.t > 0.55f },
+            Capture("breach_c") { it.xf.active && it.legIndex == 2 && it.xf.t > 0.85f },
+            Capture("sea_300") { it.phase == Phase.RUN && it.legIndex == 2 && !it.xf.active && it.legDist > 300f },
+            Capture("sea_1800") { it.phase == Phase.RUN && it.legIndex == 2 && it.legDist > 1800f },
+            Capture("sea_3100") { it.phase == Phase.RUN && it.legIndex == 2 && it.legDist > it.leg.length - 220f },
+            Capture("approach_a") { it.phase == Phase.FINALE && it.finaleT > 1.2f },
+            Capture("approach_b") { it.phase == Phase.FINALE && it.finaleT > 3.0f },
+            Capture("touchdown") { it.phase == Phase.FINALE && it.player.speed > 0f && it.finaleT > 4.4f && it.player.y < 3.4f },
+            Capture("rollout") { it.phase == Phase.FINALE && it.finaleT > 6.4f },
+            Capture("stopped") { it.phase == Phase.FINALE && it.celebrationTime > 4.6f },
+            Capture("welcome") { it.phase == Phase.FINALE && it.celebrationTime > 6.0f },
+            Capture("victory") { it.phase == Phase.VICTORY && it.phaseTime > 1.5f },
+            Capture("victory_late") { it.phase == Phase.VICTORY && it.phaseTime > 7f },
+        )
+        val captures = if (game.level.ascends) ascentCaptures else if (game.level.world == app.roadtoorbit.game.World.OCEAN) oceanCaptures else listOf(
             Capture("countdown") { it.phase == Phase.COUNTDOWN && it.phaseTime > 1.4f },
             Capture("car_200") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 230f },
             Capture("car_900") { it.phase == Phase.RUN && it.legIndex == 0 && it.legDist > 900f },
@@ -121,7 +151,7 @@ class JourneyTraceTest {
         )
 
         var time = 0f
-        while (time < 400f && !(game.phase == Phase.VICTORY && game.phaseTime > 7.5f) && game.phase != Phase.GAME_OVER) {
+        while (time < 500f && !(game.phase == Phase.VICTORY && game.phaseTime > 7.5f) && game.phase != Phase.GAME_OVER) {
             bot.control(input, dt)
             game.update(dt, input)
             scene.rig.update(game, dt)
@@ -141,7 +171,7 @@ class JourneyTraceTest {
         val p = java.util.Properties()
         fun put(k: String, v: Any) { p[k] = v.toString() }
         put("phase", h.phase.name); put("legIndex", h.legIndex); put("legName", h.legName); put("legSubtitle", h.legSubtitle)
-        put("levelIndex", h.levelIndex); put("levelName", h.levelName); put("nextLevelName", h.nextLevelName)
+        put("levelIndex", h.levelIndex); put("levelName", h.levelName); put("nextLevelName", h.nextLevelName); put("tagline", h.tagline)
         put("legLength", h.legLength); put("legZoneLength", h.legZoneLength)
         put("world", h.world.name)
         for (i in h.legModes.indices) put("legMode$i", h.legModes[i].name)

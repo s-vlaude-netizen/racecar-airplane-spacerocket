@@ -56,7 +56,8 @@ class VehicleGroundTest {
 
     @Test
     fun theVehicleNeverSinksIntoTheGroundWhileTheRocketTurnsIntoTheCar() {
-        for (level in Levels.ALL) {
+        // (the levels in which the rocket turns into the car: the Moon, Mars, the deep; homecoming ends with a plane that lands)
+        for (level in Levels.ALL.filter { l -> l.legs.toList().zipWithNext().any { (a, b) -> a.mode == VehicleMode.ROCKET && b.mode == VehicleMode.CAR } || l.finale == app.roadtoorbit.game.Finale.LANDING }) {
             val game = Game(7)
             game.level = level
             val input = GameInput()

@@ -49,6 +49,10 @@ enum class MeshId {
 
     // The welcome in Atlantis: the merfolk who cheer along the avenue, a little fish that serves as confetti, bunting over the road (OceanCelebrationMeshes)
     MERFOLK_0, MERFOLK_1, MERFOLK_2, CONFETTI_FISH, BUNTING,
+
+    // The island airstrip of HOMECOMING and its welcome (OceanAirfieldMeshes, see AirfieldSpec): the runway in segments, the buildings, the people
+    STRIP_SEG, STRIP_SEG_GLOW, STRIP_START, STRIP_END, TERMINAL, CONTROL_TOWER, HANGAR, PALM, WINDSOCK,
+    PERSON_0, PERSON_1, PERSON_2, BALLOON, CONFETTI_PAPER,
 }
 
 /**
@@ -117,6 +121,6 @@ class MeshLibrary {
             }
             else -> WorldMeshes.build(id, b)
         }
-        return b.build()
+        return b.build().also { it.trim() }
     }
 }

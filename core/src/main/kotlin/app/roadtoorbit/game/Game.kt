@@ -1,6 +1,8 @@
 package app.roadtoorbit.game
 
+import app.roadtoorbit.gfx.AirfieldSpec
 import app.roadtoorbit.gfx.Col
+import app.roadtoorbit.gfx.OceanVehicle
 import app.roadtoorbit.gfx.ParticleSystem
 import app.roadtoorbit.gfx.VehicleMode
 import app.roadtoorbit.gfx.VehicleModel
@@ -13,6 +15,7 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -146,7 +149,13 @@ class Game(seed: Long = 1L) {
     private var xfStartY = 0f
 
     /** Seconds since the arrival at the destination began (the finale, then the victory); the welcome in Atlantis is a function of it. */
-    val celebrationTime: Float get() = when (phase) { Phase.FINALE -> finaleT; Phase.VICTORY -> finaleT + phaseTime; else -> 0f }
+    val celebrationTime: Float get() = when (phase) { Phase.FINALE -> finaleT + celebrationOffset; Phase.VICTORY -> finaleT + phaseTime + celebrationOffset; else -> 0f }
+
+    /** The celebration starts when the vehicle stops: at once in an arrival (it is a function of the time since the finale began), when the plane has stopped on the airstrip. */
+    private var celebrationOffset = 0f
+    private var stoppedAt = -1f
+    private var touchdownSpeed = 0f
+    private var approachStartDist = 0f
 
     val leg: LegSpec get() = level.legs[legIndex]
     val journeyProgress: Float
@@ -431,9 +440,10 @@ class Game(seed: Long = 1L) {
             val e = Mathx.clamp01(xf.t)
             v.from = xf.from; v.to = xf.to; v.morph = e
             if (xf.from == VehicleMode.CAR) {
-                p.y = Tuning.PLANE_TAKEOFF_Y * Mathx.easeOutCubic(min(1f, e * 1.25f))
+                // the take-off up the ramp, or the launch from the seabed (steeper): up to the height the next leg begins at
+                p.y = l.startY * Mathx.easeOutCubic(min(1f, e * 1.25f))
                 p.vy = 0f
-                p.pitch += 20f * sin(PI.toFloat() * Mathx.clamp01(e * 1.4f))
+                p.pitch += (if (xf.to == VehicleMode.ROCKET) 32f else 20f) * sin(PI.toFloat() * Mathx.clamp01(e * 1.4f))
             } else if (xf.to == VehicleMode.CAR) {
                 // the nose dips a little as the vehicle comes down, and is level again well before the wheels touch
                 p.pitch -= 12f * sin(PI.toFloat() * e) * (1f - Mathx.smoothstep(0.55f, 0.85f, e))
@@ -442,6 +452,11 @@ class Game(seed: Long = 1L) {
                 p.y = Mathx.lerp(xfStartY, DIVE_Y, Mathx.smoothstep(0f, 0.75f, e))
                 p.vy = 0f
                 p.pitch -= 34f * sin(PI.toFloat() * Mathx.clamp01(e * 1.15f))
+            } else if (level.world == World.OCEAN && xf.from == VehicleMode.ROCKET) {
+                // the breach: the nose is up and the vehicle rises out of the water (the surface falls away from it, see WorldLook)
+                p.y = Mathx.lerp(xfStartY, max(xfStartY, BREACH_Y), Mathx.smoothstep(0f, 0.8f, e))
+                p.vy = 0f
+                p.pitch += 30f * sin(PI.toFloat() * Mathx.clamp01(e * 1.15f))
             } else {
                 p.pitch += 24f * sin(PI.toFloat() * e)
             }
@@ -815,7 +830,13 @@ class Game(seed: Long = 1L) {
         perfectLaunch = manual && remaining <= Tuning.PERFECT_WINDOW
         val bonus = scaled(if (perfectLaunch) Tuning.PERFECT_TRANSFORM_SCORE else Tuning.TRANSFORM_SCORE)
         score += bonus
-        val perfect = if (level.world != World.OCEAN) "PERFECT LAUNCH" else if (next.mode == VehicleMode.CAR) "PERFECT LANDING" else "PERFECT DIVE"
+        val perfect = when {
+            level.world != World.OCEAN -> "PERFECT LAUNCH"
+            next.mode == VehicleMode.CAR -> "PERFECT LANDING"
+            next.mode == VehicleMode.PLANE -> "PERFECT BREACH"
+            level.ascends -> "PERFECT LAUNCH"
+            else -> "PERFECT DIVE"
+        }
         popup(if (perfectLaunch) "$perfect! +$bonus" else "TRANSFORM! +$bonus", if (perfectLaunch) COLOR_GOLD else COLOR_ACCENT, 1.8f, true)
 
         xfStartY = player.y
@@ -849,15 +870,27 @@ class Game(seed: Long = 1L) {
 
     private var splashed = true
 
-    /** The dive: when the sea surface comes up over the vehicle, a great splash. */
+    /** The dive: when the sea surface comes up over the vehicle, a great splash; the breach (the ascent's end): when it comes up through it, a geyser. */
     private fun checkSplash() {
-        if (splashed || !xf.active || level.world != World.OCEAN || xf.from != VehicleMode.PLANE) return
-        if (look.surfaceY > player.y + 0.4f) {
-            splashed = true
-            sfx(Sfx.SPLASH)
-            shake = max(shake, 0.5f)
-            particles.burst(player.x, look.surfaceY + 0.3f, -1f, 70, 14f, 1.4f, 1.0f, Col.rgba(0xFFFFFF, 0.9f), Col.rgba(0x9ED8FF, 0f), false, -6f, 1.1f)
-            particles.burst(player.x, look.surfaceY, 0f, 26, 6f, 1.6f, 0.7f, Col.rgba(0xFFFFFF, 0.6f), Col.rgba(0xBFEFFF, 0f), false, 1.5f, 1.0f)
+        if (splashed || !xf.active || level.world != World.OCEAN) return
+        if (xf.from == VehicleMode.PLANE) {
+            if (look.surfaceY > player.y + 0.4f) {
+                splashed = true
+                sfx(Sfx.SPLASH)
+                shake = max(shake, 0.5f)
+                particles.burst(player.x, look.surfaceY + 0.3f, -1f, 70, 14f, 1.4f, 1.0f, Col.rgba(0xFFFFFF, 0.9f), Col.rgba(0x9ED8FF, 0f), false, -6f, 1.1f)
+                particles.burst(player.x, look.surfaceY, 0f, 26, 6f, 1.6f, 0.7f, Col.rgba(0xFFFFFF, 0.6f), Col.rgba(0xBFEFFF, 0f), false, 1.5f, 1.0f)
+            }
+        } else if (xf.from == VehicleMode.ROCKET) {
+            if (look.surfaceY < player.y + 0.4f) {
+                splashed = true
+                sfx(Sfx.SPLASH)
+                shake = max(shake, 0.7f)
+                flash = max(flash, 0.5f)
+                // the water the vehicle throws up as it comes out, and the spray that hangs in the sunlight
+                particles.burst(player.x, player.y, -1f, 90, 18f, 1.8f, 1.2f, Col.rgba(0xFFFFFF, 0.9f), Col.rgba(0x9ED8FF, 0f), false, -9f, 1.0f)
+                particles.burst(player.x, player.y, 0f, 40, 8f, 2.2f, 0.9f, Col.rgba(0xFFFFFF, 0.6f), Col.rgba(0xBFEFFF, 0f), false, -2f, 0.8f)
+            }
         }
     }
 
@@ -908,7 +941,10 @@ class Game(seed: Long = 1L) {
         welcomed = false; fireworkIn = 0f; fireworkChimes = 0
         finaleStopDist = max(60f, leg.length + OceanSpawner.GATE_AHEAD + ARRIVAL_STOP_AFTER_GATE - legDist)
         removeWhere { it.kind.category == Category.HAZARD || it.kind.category == Category.PICKUP || it.kind == Kind.PLANET }
-        finaleGroundY = if (level.finale == Finale.ARRIVAL) 0f else -330f
+        finaleGroundY = when (level.finale) { Finale.ARRIVAL -> 0f; Finale.AIRSTRIP -> AirfieldSpec.STRIP_Y; else -> -330f }
+        stoppedAt = -1f
+        celebrationOffset = if (level.finale == Finale.AIRSTRIP) -100f else 0f // (there is nothing to celebrate until the plane has stopped)
+        approachStartDist = legDist
         flash = 0.6f
         popup("APPROACHING ${level.destination}", COLOR_WHITE, 2.6f, true)
     }
@@ -921,6 +957,10 @@ class Game(seed: Long = 1L) {
     private fun updateFinale(dt: Float) {
         if (level.finale == Finale.ARRIVAL) {
             updateArrival(dt)
+            return
+        }
+        if (level.finale == Finale.AIRSTRIP) {
+            updateAirstrip(dt)
             return
         }
         finaleT += dt
@@ -1003,7 +1043,7 @@ class Game(seed: Long = 1L) {
         if (t < WELCOME_AT) return
         if (!welcomed) {
             welcomed = true
-            popup("WELCOME TO ATLANTIS!", COLOR_GOLD, 3.8f, true)
+            popup(if (level.finale == Finale.AIRSTRIP) "WELCOME HOME!" else "WELCOME TO ATLANTIS!", COLOR_GOLD, 3.8f, true)
             sfx(Sfx.ZONE)
             flash = max(flash, 0.5f)
         }
@@ -1050,6 +1090,68 @@ class Game(seed: Long = 1L) {
         if (t >= 7.4f) completeRun()
     }
 
+    /**
+     * The last leg was a flight: the plane glides in over the sea (the wheels come down), flares and lands on the island's airstrip, rolls
+     * out and stops at the same place however fast it came, among the people who are waiting; the celebration begins when it stops.
+     */
+    private fun updateAirstrip(dt: Float) {
+        finaleT += dt
+        val t = finaleT
+        celebrate(dt, celebrationTime)
+        val p = player
+        val v = p.visual
+        v.time = clock
+        v.steerDeg = 0f
+        v.gear = Mathx.damp(v.gear, 1f, 3.5f, dt)
+        val rest = AirfieldSpec.STRIP_Y + OceanVehicle.GEAR_BOTTOM
+        val touch = leg.length + AirfieldSpec.THRESHOLD_AHEAD + AirfieldSpec.TOUCHDOWN_AFTER
+        val stopAt = leg.length + AirfieldSpec.STOP_AFTER_LEG
+        if (!touchedDown) {
+            // the approach: down a glide path that flattens out (the flare) to the point of touchdown, the speed easing off
+            val f = Mathx.clamp01((legDist - approachStartDist) / max(1f, touch - approachStartDist))
+            val glide = (1f - f).pow(1.7f)
+            val targetPitch = Mathx.lerp(-5f, 1f, f) + 6f * Mathx.smoothstep(0.7f, 0.96f, f) * (1f - Mathx.smoothstep(0.96f, 1f, f))
+            p.pitch = Mathx.damp(p.pitch, targetPitch, 5f, dt)
+            p.y = rest + (finaleStartY - rest) * glide + 1.1f * sin(max(0f, p.pitch) * (PI.toFloat() / 180f)) // (the tail wheels are lower than the nose when the nose is up)
+            p.speed = Mathx.lerp(finaleStartSpeed, max(38f, finaleStartSpeed * 0.55f), Mathx.smoothstep(0.1f, 1f, f))
+            if (legDist >= touch) {
+                touchedDown = true
+                touchdownSpeed = p.speed
+                sfx(Sfx.TOUCHDOWN)
+                shake = max(shake, 0.6f)
+                for (side in intArrayOf(-1, 1)) particles.burst(p.x + side * 0.95f, AirfieldSpec.STRIP_Y + 0.25f, 0.9f, 16, 5f, 1.4f, 1.1f, Col.rgba(0xEEEEEE, 0.8f), Col.rgba(0xBBBBBB, 0f), false, 1f, 1.2f)
+            }
+        } else {
+            p.pitch = Mathx.damp(p.pitch, 0f, 6f, dt)
+            p.y = rest + 1.1f * sin(max(0f, p.pitch) * (PI.toFloat() / 180f)) // (the nose comes down on its wheel)
+            val remaining = max(0f, stopAt - legDist)
+            val decel = max(8f, touchdownSpeed * touchdownSpeed / (2f * AirfieldSpec.ROLLOUT))
+            p.speed = if (remaining < 0.05f) 0f else min(p.speed, sqrt(2f * decel * remaining))
+            if (p.speed > 6f && stoppedAt < 0f && rng.chance(0.5f)) {
+                particles.emit(p.x + rng.range(-1f, 1f), AirfieldSpec.STRIP_Y + 0.2f, 0.9f, rng.range(-0.5f, 0.5f), rng.range(0.3f, 1.2f), 2f + p.speed * 0.2f, rng.range(0.5f, 0.9f), 0.4f, 1.1f, Col.rgba(0xEEEEEE, 0.5f), Col.rgba(0xBBBBBB, 0f), false, 0f, 1f, true)
+            }
+        }
+        p.x = Mathx.damp(p.x, 0f, 2f, dt)
+        p.roll = Mathx.damp(p.roll, 0f, 3f, dt)
+        p.yaw = 0f
+        p.vx = 0f
+        v.flame = 0f
+        if (touchedDown) {
+            wheelSpin += p.speed / 0.22f * (180f / PI.toFloat()) * dt
+            wheelSpin %= 3600f
+        }
+        v.wheelSpinDeg = wheelSpin
+        legDist += p.speed * dt
+        travelled += p.speed * dt
+        updateEntities(dt)
+        particlesUpdate(dt, p.speed)
+        if (touchedDown && p.speed <= 0.01f && stoppedAt < 0f) {
+            stoppedAt = t
+            celebrationOffset = WELCOME_AT - t
+        }
+        if (stoppedAt >= 0f && t >= stoppedAt + 3.0f) completeRun()
+    }
+
     private fun completeRun() {
         phase = Phase.VICTORY
         phaseTime = 0f
@@ -1070,12 +1172,12 @@ class Game(seed: Long = 1L) {
         val v = p.visual
         v.time = clock
         // the moon's car drives off; a car that has arrived at its destination stays parked
-        p.speed = if (level.finale == Finale.ARRIVAL) Mathx.damp(p.speed, 0f, 4f, dt) else Mathx.damp(p.speed, 12f, 1.5f, dt)
+        p.speed = if (level.finale != Finale.LANDING) Mathx.damp(p.speed, 0f, 4f, dt) else Mathx.damp(p.speed, 12f, 1.5f, dt)
         wheelSpin += p.speed / 0.36f * (180f / PI.toFloat()) * dt
         wheelSpin %= 3600f
         v.wheelSpinDeg = wheelSpin
         travelled += p.speed * dt
-        if (level.finale == Finale.ARRIVAL) { legDist += p.speed * dt; celebrate(dt, celebrationTime) }
+        if (level.finale != Finale.LANDING) { legDist += p.speed * dt; celebrate(dt, celebrationTime) }
         updateEntities(dt)
         particlesUpdate(dt, p.speed)
     }
@@ -1253,6 +1355,9 @@ class Game(seed: Long = 1L) {
 
         /** Where the submarine's dive takes it (y) and how far from the middle the car may be when it lands on the seabed. */
         const val DIVE_Y = 9f
+
+        /** The height the submarine rises to as it breaks through the surface (and the plane that comes out of it begins its leg at, at least). */
+        const val BREACH_Y = 11f
 
         /** In an arrival the car stops this far beyond the gate (the city's dome is more than 60 m further on). */
         const val ARRIVAL_STOP_AFTER_GATE = 42f

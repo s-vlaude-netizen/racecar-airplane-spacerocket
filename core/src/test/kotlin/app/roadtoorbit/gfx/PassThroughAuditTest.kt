@@ -232,7 +232,7 @@ class PassThroughAuditTest {
         scene.renderer.litObserver = { mesh, model ->
             val id = scene.renderer.meshes.idOf(mesh)
             val e = scene.renderer.observedEntity
-            if (id != null && (e != null || id == MeshId.CONFETTI_FISH)) {
+            if (id != null && (e != null || id == MeshId.CONFETTI_FISH || id == MeshId.CONFETTI_PAPER || id == MeshId.BALLOON)) {
                 if (used == pool.size) pool.add(Inst(null, id))
                 val inst = pool[used++]
                 inst.e = e; inst.id = id
@@ -369,8 +369,8 @@ class PassThroughAuditTest {
                     cat == Category.HAZARD -> {
                         // a hazard that is visibly inside the vehicle must have hit it (unless it is blinking: it cannot be hurt then)
                         val core = nowOf(hazardMargin)
-                        // (the tentacles of a jellyfish and the chain of a mine are thin and hang far below the body that hits: brushing them is no hit)
-                        val thin = e.kind == Kind.JELLY || e.kind == Kind.MINE
+                        // (the tentacles of a jellyfish, the chain of a mine and the legs of a crab are thin and reach far beyond the body that hits: brushing them is no hit)
+                        val thin = e.kind == Kind.JELLY || e.kind == Kind.MINE || e.kind == Kind.CRAB
                         if (!thin && p.invuln <= 0f && p.blink <= 0f && !game.xf.active && boxesTouch(wb, core) && meshTouches(inst.id, inst.m, core)) {
                             found("$tag: ${e.kind}/${inst.id} is inside the ${leg.mode} and did not hit it", depth(inst.id, inst.m, wb, nowOf), describe)
                         }

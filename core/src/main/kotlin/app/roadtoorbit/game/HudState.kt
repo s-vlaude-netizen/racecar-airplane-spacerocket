@@ -157,6 +157,12 @@ internal fun Game.altitudeKm(): Float = when {
     level.world == World.OCEAN -> when {
         // the depth of the ocean level: the dive reaches 3 km, the trench road leads on down to the destination
         phase == Phase.FINALE || phase == Phase.VICTORY -> level.destinationKm
+        // homecoming goes the other way: up from Atlantis to 3 km, up to the surface, and over the sea
+        level.ascends -> when (leg.mode) {
+            VehicleMode.CAR -> Levels.ATLANTIS_KM - (Levels.ATLANTIS_KM - 3f) * Mathx.clamp01(legDist / leg.length)
+            VehicleMode.ROCKET -> 3f * (1f - Mathx.smoothstep(0f, 1f, Mathx.clamp01(legDist / leg.length)))
+            VehicleMode.PLANE -> 0f
+        }
         legIndex == 0 -> 0f
         legIndex == 1 -> 3f * Mathx.smoothstep(0f, 1f, Mathx.clamp01(legDist / leg.length))
         else -> 3f + (level.destinationKm - 3f) * Mathx.clamp01(legDist / leg.length)

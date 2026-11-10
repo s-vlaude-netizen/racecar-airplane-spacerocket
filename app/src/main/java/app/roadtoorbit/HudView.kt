@@ -521,6 +521,7 @@ class HudView(context: Context, private val bridge: UiBridge) : View(context) {
         val levelColor = when (s.levelIndex) {
             0 -> Color.argb(190, 40, 90, 150)
             1 -> Color.argb(200, 160, 70, 40)
+            3 -> Color.argb(200, 40, 130, 100)
             else -> Color.argb(200, 20, 120, 140)
         }
         drawPillColored(c, rect, "LEVEL ${s.levelIndex + 1}: ${s.levelName}", levelColor, 4)

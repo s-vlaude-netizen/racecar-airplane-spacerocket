@@ -27,6 +27,13 @@ object OceanVehicle {
     const val KEEL_Y = -0.49f
     const val WATERLINE_Y = -0.30f
 
+    /**
+     * The waterplane is an amphibian: a wheel in the middle of each float, tucked into it, which [VehicleVisual.gear] lowers by [GEAR_DROP] for a
+     * landing on the airstrip. With the gear down the lowest point of the vehicle (the tyres) is [GEAR_BOTTOM] below its origin.
+     */
+    const val GEAR_DROP = 0.42f
+    const val GEAR_BOTTOM = 0.92f
+
     /** Where the bubble / exhaust emitters sit per form (car, plane, rocket): the car's thruster, the waterplane's propeller wash, the submarine's nozzle mouth. */
     val EXHAUST: Array<FloatArray> = arrayOf(
         floatArrayOf(0f, 0.52f, 2.35f),
@@ -56,7 +63,7 @@ private fun hidden(x: Float, y: Float, z: Float, tint: Int = Col.WHITE) =
     Pose(x, y, z, sx = 0.001f, sy = 0.001f, sz = 0.001f, tint = tint)
 
 /** What a part does besides sitting where its pose puts it: the wheels spin (the front ones steer), the propeller turns with the clock. */
-enum class PartRole { NONE, FRONT_WHEEL, REAR_WHEEL, PROPELLER }
+enum class PartRole { NONE, FRONT_WHEEL, REAR_WHEEL, PROPELLER, GEAR }
 
 /** One articulated piece of the vehicle with a pose per form. */
 class PartDef(
@@ -108,6 +115,9 @@ class VehicleVisual {
      * value, so it should be high where it is dark and 0 in daylight. The standard skin ignores it.
      */
     var beam = 0f
+
+    /** 0..1: how far the amphibian waterplane's wheels are lowered out of its floats (the ocean skin's plane form); 0 in flight, 1 for the landing. */
+    var gear = 0f
     var visible = true
 
     fun settle(mode: VehicleMode) {
@@ -560,6 +570,15 @@ object VehicleModel {
         delay = 0f, spec = 0.2f,
     )
 
+    /** A wheel of the amphibian: in the middle of a float, hidden in it until the gear goes down (see [OceanVehicle.GEAR_DROP]); only the waterplane has them. */
+    private fun gearWheel(side: Int, z: Float) = PartDef(
+        MeshId.WHEEL_TIRE,
+        car = hid(side * 0.95f, -0.28f, z, O_TYRE),
+        plane = Pose(side * 0.95f, -0.28f, z, sx = 0.80f, sy = 0.62f, sz = 0.62f, tint = O_TYRE),
+        rocket = hid(side * 0.95f, -0.28f, z, O_TYRE),
+        delay = 0f, spec = 0.1f, shine = 40f, role = PartRole.GEAR,
+    )
+
     private fun pontoon(side: Int) = PartDef(
         MeshId.PONTOON,
         car = hid(side * 0.4f, 0.4f, 0.3f, WHITE),
@@ -669,6 +688,7 @@ object VehicleModel {
         ),
         stabiliser(-1), stabiliser(1),
         pontoon(-1), pontoon(1),
+        gearWheel(-1, -0.6f), gearWheel(-1, 0.9f), gearWheel(1, -0.6f), gearWheel(1, 0.9f),
         strut(-1, -0.55f), strut(-1, 0.75f), strut(1, -0.55f), strut(1, 0.75f),
         PartDef(
             MeshId.PROP,
@@ -805,7 +825,9 @@ class VehicleRenderer(gl: Gles, private val renderer: Renderer) {
             val tint = Col.mix(a.tint, b.tint, Mathx.clamp01(p))
 
             if (part.role == PartRole.FRONT_WHEEL) ry += v.steerDeg * steerW
-            Mat4.setTrs(partM, x, y, z, rx, ry, rz, sx, sy, sz)
+            val yy = if (part.role == PartRole.GEAR) y - OceanVehicle.GEAR_DROP * v.gear * v.weight(VehicleMode.PLANE) else y // (the wheels are only there in the plane's form)
+            Mat4.setTrs(partM, x, yy, z, rx, ry, rz, sx, sy, sz)
+            if (part.role == PartRole.GEAR) Mat4.rotateX(partM, v.wheelSpinDeg)
             // wheel spin happens about the part's own X axis, innermost
             if ((part.role == PartRole.FRONT_WHEEL || part.role == PartRole.REAR_WHEEL) && steerW > 0.01f) Mat4.rotateX(partM, v.wheelSpinDeg)
             if (part.role == PartRole.PROPELLER) {

@@ -1,5 +1,6 @@
 package app.roadtoorbit.game
 
+import app.roadtoorbit.gfx.AirfieldSpec
 import app.roadtoorbit.gfx.Footprints
 import app.roadtoorbit.gfx.OceanSpec
 import app.roadtoorbit.gfx.VehicleMode
@@ -27,7 +28,7 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
     }
 
     fun decor(leg: LegSpec, s: Float): Float = when (leg.mode) {
-        VehicleMode.PLANE -> seaDecor(s)
+        VehicleMode.PLANE -> if (leg.zoneLength == 0f && s > leg.length + AirfieldSpec.THRESHOLD_AHEAD - 150f) 60f else seaDecor(s) // (the island with the airstrip is there)
         VehicleMode.ROCKET -> diveDecor(s)
         VehicleMode.CAR -> seabedDecor(s)
     }
@@ -339,15 +340,17 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
     private fun seabedDecor(s: Float): Float {
         val side = rng.sign()
         val r = rng.float()
-        val e = seabedThing(s, side, rng.range(10.5f, 46f), if (r < 0.9f) 1f else 0f, Footprints.CAR_CLEAR)
+        val clear = sp.clearanceAt(s) // (in the zone where the car may become the rocket, what stands beside the road must clear the submarine as well)
+        val e = seabedThing(s, side, rng.range(10.5f, 46f), if (r < 0.9f) 1f else 0f, clear)
         e.groundBound = true
-        // a school of fish above the road now and then (high enough not to touch the car)
+        // a school of fish above the road now and then (high enough not to touch the car, and out of the submarine's way where it may fly)
         if (rng.chance(0.07f)) {
             val f = sp.place(Kind.SEASCAPE, s, rng.range(0f, 20f), side * rng.range(5f, 26f), rng.range(6f, 18f), variant = OceanSpec.SCHOOL + rng.int(2))
             f.scale = rng.range(0.9f, 1.5f)
             f.speed = rng.range(10f, 20f)
             f.vx = rng.range(-1.2f, 1.2f)
             f.y = max(f.y, SCHOOL_LOWEST * f.scale + 2.4f)
+            if (sp.flyerMeets(g.legDist - f.z)) { sp.standOff(f, side, Footprints.AIR_CLEAR); f.vx = abs(f.vx) * side } // (where it really stands: it is placed up to 20 m beyond s)
         }
         // signs of the lost civilisation stand beside the road now and then
         if (rng.chance(0.045f)) {
@@ -355,7 +358,7 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
             ru.groundBound = true
             ru.scale = rng.range(0.7f, 1.0f)
             ru.ry = rng.range(0f, 360f)
-            sp.standOff(ru, -side, Footprints.CAR_CLEAR)
+            sp.standOff(ru, -side, clear)
         }
         return rng.range(8f, 18f)
     }
@@ -388,18 +391,20 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
     // ---- gates --------------------------------------------------------------------------------------------
 
     fun gate(leg: LegSpec) {
-        when (leg.index) {
-            0 -> {
-                // the dive gate: a ring standing in the sea, with smaller ones along the zone
-                val big = sp.place(Kind.PORTAL, leg.length, 0f, 0f, 15f, variant = 0)
-                big.scale = 1f
-                var k = 1
-                while (k * 95f < leg.zoneLength) {
-                    sp.place(Kind.PORTAL, leg.length - k * 95f, 0f, 0f, 10f, variant = 1)
-                    k++
-                }
+        when (leg.mode) {
+            VehicleMode.PLANE -> {
+                if (leg.zoneLength > 0f) {
+                    // the dive gate: a ring standing in the sea, with smaller ones along the zone
+                    val big = sp.place(Kind.PORTAL, leg.length, 0f, 0f, 15f, variant = 0)
+                    big.scale = 1f
+                    var k = 1
+                    while (k * 95f < leg.zoneLength) {
+                        sp.place(Kind.PORTAL, leg.length - k * 95f, 0f, 0f, 10f, variant = 1)
+                        k++
+                    }
+                } else airfield(leg.length)
             }
-            1 -> {
+            VehicleMode.ROCKET -> {
                 val portal = sp.place(Kind.PORTAL, leg.length, 0f, 0f, 17f, variant = 0)
                 portal.scale = 1f
                 var k = 1
@@ -408,14 +413,82 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
                     k++
                 }
             }
-            else -> {
-                // Atlantis: its gate across the road a little beyond the end of the leg, and the city behind it
-                sp.place(Kind.GATE_ARCH, leg.length + GATE_AHEAD, 0f, 0f, 0f, variant = 2).groundBound = true
-                val city = sp.place(Kind.MOON, leg.length + GATE_AHEAD + CITY_BEYOND_GATE, 0f, 0f, 0f)
-                city.groundBound = true
-                welcome(leg.length + GATE_AHEAD)
+            VehicleMode.CAR -> {
+                if (leg.zoneLength > 0f) {
+                    // leaving Atlantis: the gate of the launch, and smaller arches along the zone where the car may become the rocket
+                    sp.place(Kind.GATE_ARCH, leg.length, 0f, 0f, 0f, variant = 0).groundBound = true
+                    var k = 1
+                    while (k * 80f < leg.zoneLength) {
+                        sp.place(Kind.GATE_ARCH, leg.length - k * 80f, 0f, 0f, 0f, variant = 1).groundBound = true
+                        k++
+                    }
+                } else {
+                    // Atlantis: its gate across the road a little beyond the end of the leg, and the city behind it
+                    sp.place(Kind.GATE_ARCH, leg.length + GATE_AHEAD, 0f, 0f, 0f, variant = 2).groundBound = true
+                    val city = sp.place(Kind.MOON, leg.length + GATE_AHEAD + CITY_BEYOND_GATE, 0f, 0f, 0f)
+                    city.groundBound = true
+                    welcome(leg.length + GATE_AHEAD)
+                }
             }
         }
+    }
+
+    /**
+     * The island airstrip where the flight home ends (see [AirfieldSpec]): the people of the island line the runway on both sides around the
+     * place where the plane stops, waving, some of them with balloons; the terminal and the tower stand behind them on one side, hangars on the
+     * other, palms on the grass, a windsock by the runway, and flags are strung across it beyond the stop.
+     */
+    private fun airfield(legEnd: Float) {
+        val t0 = legEnd + AirfieldSpec.THRESHOLD_AHEAD
+        val stop = legEnd + AirfieldSpec.STOP_AFTER_LEG
+        val y = AirfieldSpec.STRIP_Y
+        fun stand(e: Entity): Entity { e.groundBound = true; e.onSurface = true; return e }
+
+        // the buildings: where they stand along the route is kept, so that the palms and the people keep clear of them
+        stand(sp.place(Kind.SEASCAPE, stop - 18f, 0f, 33f, y, variant = OceanSpec.TERMINAL)).ry = 90f
+        stand(sp.place(Kind.SEASCAPE, stop + 24f, 0f, 36f, y, variant = OceanSpec.TOWER))
+        stand(sp.place(Kind.SEASCAPE, stop - 45f, 0f, -35f, y, variant = OceanSpec.HANGAR)).ry = -90f
+        stand(sp.place(Kind.SEASCAPE, stop + 10f, 0f, -35f, y, variant = OceanSpec.HANGAR)).ry = -90f
+        stand(sp.place(Kind.SEASCAPE, t0 + 90f, 0f, -19.5f, y, variant = OceanSpec.WINDSOCK))
+
+        // the crowd, and the balloons in some of their hands
+        var s = stop - 115f
+        while (s < stop + 75f) {
+            for (side in intArrayOf(-1, 1)) {
+                if (!rng.chance(0.85f)) continue
+                val x = side * rng.range(AirfieldSpec.CROWD_NEAR, AirfieldSpec.CROWD_FAR)
+                val at = s + rng.range(-2f, 2f)
+                val e = stand(sp.place(Kind.SEASCAPE, at, 0f, x, y, variant = OceanSpec.PERSON + rng.int(3)))
+                e.ry = side * (90f + rng.range(-30f, 30f)) // turned toward the runway
+                e.scale = rng.range(0.92f, 1.1f)
+                e.param = rng.range(0f, 6.28f)
+                if (rng.chance(0.3f)) {
+                    val b = stand(sp.place(Kind.SEASCAPE, at + rng.range(-0.4f, 0.4f), 0f, x - side * rng.range(0.2f, 0.7f), y + 2.9f + rng.range(0f, 0.8f), variant = OceanSpec.BALLOON))
+                    b.tint = BALLOON_COLOURS[rng.int(BALLOON_COLOURS.size)]
+                    b.param = rng.range(0f, 6.28f)
+                }
+            }
+            s += rng.range(3.5f, 7f)
+        }
+
+        // palms on the grass, out of the way of the buildings
+        var ps = t0 + 20f
+        while (ps < t0 + AirfieldSpec.LENGTH - 30f) {
+            for (side in intArrayOf(-1, 1)) {
+                val x = side * rng.range(24f, 47f)
+                val at = ps + rng.range(-5f, 5f)
+                if (x > 0f && at > stop - 45f && at < stop + 32f) continue // the terminal and the tower
+                if (x < 0f && ((at > stop - 60f && at < stop - 28f) || (at > stop - 6f && at < stop + 26f))) continue // the hangars
+                val e = stand(sp.place(Kind.SEASCAPE, at, 0f, x, y, variant = OceanSpec.PALM))
+                e.scale = rng.range(0.85f, 1.25f)
+                e.ry = rng.range(0f, 360f)
+                e.param = rng.range(0f, 6.28f)
+            }
+            ps += rng.range(11f, 19f)
+        }
+
+        // flags across the runway: two beyond the place where the plane stops, one it passes under as it rolls out
+        for (d in floatArrayOf(-75f, 30f, 70f)) stand(sp.place(Kind.SEASCAPE, stop + d, 0f, 0f, y, variant = OceanSpec.BUNTING))
     }
 
     /**
@@ -428,7 +501,7 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
             for (side in intArrayOf(-1, 1)) {
                 val e = sp.place(Kind.SEASCAPE, s + rng.range(-3f, 3f), 0f, side * rng.range(8.7f, 11.5f), 0.15f, variant = OceanSpec.MERFOLK + rng.int(3))
                 e.groundBound = true
-                e.ry = -side * (90f + rng.range(-35f, 35f)) // turned toward the road
+                e.ry = side * (90f + rng.range(-35f, 35f)) // turned toward the road (a model faces -Z; turned by +90 degrees it faces -X)
                 e.scale = rng.range(0.92f, 1.15f)
                 e.param = rng.range(0f, 6.28f)
             }
@@ -452,6 +525,9 @@ internal class OceanSpawner(private val sp: Spawner, private val g: Game) {
 
         /** The part of a shark's length that hits when it swims across the lane: its body, not the thin tip of the nose and of the tail. */
         const val SHARK_BODY = 0.82f
+
+        /** The colours of the balloons (0xRRGGBB, multiplied into the white of the model). */
+        val BALLOON_COLOURS = intArrayOf(0xFF4A4A, 0xFFC83A, 0x4FD0FF, 0x5CE07A, 0xE05CFF, 0xFF8A2A, 0x6A7CFF)
 
         /** A school of fish (SCHOOL_0 / SCHOOL_1) reaches this far below its middle at scale 1. */
         const val SCHOOL_LOWEST = 3.05f

@@ -73,6 +73,15 @@ class MeshData(initialCapacity: Int = 256) {
         return buf
     }
 
+    /** Gives back the spare capacity of a mesh that is built once and kept (it is not appended to afterwards). */
+    fun trim() {
+        if (col.size <= count) return
+        val n = maxOf(count, 1)
+        pos = pos.copyOf(n * 3)
+        nrm = nrm.copyOf(n * 3)
+        col = col.copyOf(n)
+    }
+
     /** Axis-aligned bounds as [minX, minY, minZ, maxX, maxY, maxZ]; zeros for an empty mesh. */
     fun bounds(): FloatArray {
         if (count == 0) return FloatArray(6)

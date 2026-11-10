@@ -62,6 +62,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         celestials(g)
         terrain(g)
         road(g)
+        strip(g)
         entities(g)
         celebration(g)
         showroomPlatform(g)
@@ -200,15 +201,26 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         }
     }
 
-    /** The sunken highway: it starts where the dive ends, so the submarine sees its glowing lanes ahead as it comes down onto it. */
+    /**
+     * The sunken highway: going down it starts where the dive ends, so the submarine sees its glowing lanes ahead as it comes down onto it; going
+     * up it is where the level begins, and it lies below the rocket for a while after the launch.
+     */
     private fun seaRoad(g: Game) {
         if (g.phase == Phase.MENU) return
-        val last = g.level.legs[g.level.lastLeg]
-        val onRoad = g.legIndex == g.level.lastLeg || g.phase == Phase.FINALE || g.phase == Phase.VICTORY
-        val nearEnd = g.legIndex == g.level.lastLeg - 1 && g.look.groundY > -60f
+        val level = g.level
+        val carLeg = level.legs.indexOfFirst { it.mode == VehicleMode.CAR }
+        val car = level.legs[carLeg]
+        val up = level.ascends
+        val finale = g.phase == Phase.FINALE || g.phase == Phase.VICTORY
+        val onRoad = g.legIndex == carLeg || (finale && level.finale == Finale.ARRIVAL)
+        val nearEnd = (if (up) g.legIndex == carLeg + 1 else g.legIndex == carLeg - 1) && g.look.groundY > -60f
         if (!onRoad && !nearEnd) return
-        val routeS = if (onRoad) g.legDist else g.legDist - g.level.legs[g.level.lastLeg - 1].length
-        val endRoute = last.length + OceanSpawner.GATE_AHEAD + 260f
+        val routeS = when {
+            onRoad -> g.legDist
+            up -> car.length + g.legDist
+            else -> g.legDist - level.legs[carLeg - 1].length
+        }
+        val endRoute = if (up) car.length + 80f else car.length + OceanSpawner.GATE_AHEAD + 260f
         val seg = renderer.meshes[MeshId.ROAD_SEA]
         val glow = renderer.meshes[MeshId.ROAD_SEA_GLOW]
         var s0 = max(0f, floor((routeS - 40f) / SEG) * SEG)
@@ -221,6 +233,30 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                 renderer.drawLit(glow, m, mat)
             }
             s0 += SEG
+        }
+    }
+
+    /** The island's airstrip, laid out like the road, from the end of the last leg on: the flight home ends on it. */
+    private fun strip(g: Game) {
+        val level = g.level
+        if (level.finale != Finale.AIRSTRIP || g.phase == Phase.MENU) return
+        val finale = g.phase == Phase.FINALE || g.phase == Phase.VICTORY
+        if (g.legIndex != level.lastLeg && !finale) return
+        val t0 = level.legs[level.lastLeg].length + AirfieldSpec.THRESHOLD_AHEAD
+        val routeS = g.legDist
+        val top = g.look.surfaceY + AirfieldSpec.STRIP_Y
+        for (k in 0 until AirfieldSpec.SEGMENTS) {
+            val s0 = t0 + k * AirfieldSpec.SEG
+            val z = -(s0 - routeS) // the near edge of this segment
+            if (z > 40f || z - AirfieldSpec.SEG < -1500f) continue
+            Mat4.setTrs(m, 0f, top, z, 0f, 0f, 0f, 1f, 1f, 1f)
+            val id = when (k) { 0 -> MeshId.STRIP_START; AirfieldSpec.SEGMENTS - 1 -> MeshId.STRIP_END; else -> MeshId.STRIP_SEG }
+            mat.reset().gloss(0.05f, 10f)
+            renderer.drawLit(renderer.meshes[id], m, mat)
+            if (k in 1 until AirfieldSpec.SEGMENTS - 1) {
+                mat.reset(); mat.emissive = 0.9f
+                renderer.drawLit(renderer.meshes[MeshId.STRIP_SEG_GLOW], m, mat)
+            }
         }
     }
 
@@ -237,6 +273,10 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
     /** The escort and the confetti of fish that greet the car at the end of a level that ends in an arrival. */
     private fun celebration(g: Game) {
         celebrationFish = 0
+        if (g.level.finale == Finale.AIRSTRIP) {
+            airstripCelebration(g)
+            return
+        }
         if (g.level.finale != Finale.ARRIVAL || (g.phase != Phase.FINALE && g.phase != Phase.VICTORY)) return
         val t = g.celebrationTime
         val mesh = renderer.meshes[MeshId.CONFETTI_FISH]
@@ -251,6 +291,35 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             mat.emissive = 0.32f; mat.fogScale = 0.5f
             Mat4.setTrs(m, px + fishNow[0], fishNow[1], fishNow[2], pitch, yaw, 0f, size, size, size)
             renderer.drawLit(mesh, m, mat)
+            celebrationFish++
+        }
+    }
+
+    private val confetti = CelebrationConfetti()
+    private val confettiPose = FloatArray(5)
+
+    /** The paper and the balloons of the welcome on the airstrip, from the moment the plane has stopped. */
+    private fun airstripCelebration(g: Game) {
+        if (g.phase != Phase.FINALE && g.phase != Phase.VICTORY) return
+        val t = g.celebrationTime - Game.WELCOME_AT
+        if (t < 0f) return
+        val paper = renderer.meshes[MeshId.CONFETTI_PAPER]
+        val balloon = renderer.meshes[MeshId.BALLOON]
+        val px = g.player.x
+        val base = g.look.surfaceY + AirfieldSpec.STRIP_Y
+        for (i in 0 until CelebrationConfetti.COUNT) {
+            val size = confetti.pose(i, t, confettiPose)
+            if (size <= 0.01f) continue
+            mat.reset().tint(confetti.r[i], confetti.g[i], confetti.b[i]).gloss(0.5f, 40f)
+            if (i < CelebrationConfetti.PAPER) {
+                mat.emissive = 0.3f
+                Mat4.setTrs(m, px + confettiPose[0], base + confettiPose[1], confettiPose[2], confettiPose[3], confettiPose[4], 0f, size, size, size)
+                renderer.drawLit(paper, m, mat)
+            } else {
+                mat.emissive = 0.25f
+                Mat4.setTrs(m, px + confettiPose[0], base + confettiPose[1], confettiPose[2], confettiPose[3], 0f, 0f, size, size, size)
+                renderer.drawLit(balloon, m, mat)
+            }
             celebrationFish++
         }
     }
@@ -383,7 +452,7 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
      */
     private fun drawOceanEntity(g: Game, e: Entity, y: Float): Boolean {
         val look = g.look
-        val underwater = g.legIndex >= 1 || g.phase == Phase.FINALE || g.phase == Phase.VICTORY
+        val underwater = look.surfaceY > g.player.y // the vehicle is below the surface (the surface is above it)
         mat.reset()
         if (underwater) mat.fogScale = 0.6f // what is in the way has to stay visible in the water
         val id: MeshId
@@ -422,13 +491,21 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
             Kind.CRYSTAL -> { id = MeshId.PEARL; mat.gloss(0.8f, 60f); mat.emissive = 0.7f; mat.rim(0.4f, 0.9f, 1f, 2.5f); sx = 1.5f; sy = 1.5f; sz = 1.5f }
             Kind.PORTAL -> {
                 id = if (e.variant == 0) MeshId.DIVE_GATE_BIG else MeshId.DIVE_GATE_SMALL
-                mat.emissive = if (g.legIndex == 0) 0.4f else 0.9f; mat.fogScale = 0.4f
+                mat.emissive = if (underwater) 0.9f else 0.4f; mat.fogScale = 0.4f
                 sx = 1f; sy = 1f; sz = 1f
             }
-            Kind.START_ARCH -> { id = MeshId.START_BUOYS; mat.emissive = 0.2f; sx = 1f; sy = 1f; sz = 1f; ty = look.surfaceY }
+            Kind.START_ARCH -> {
+                if (g.level.legs[0].mode == VehicleMode.CAR) {
+                    // the level begins in Atlantis: its gate on the seabed
+                    id = MeshId.ATLANTIS_GATE
+                    mat.tint(0.9f, 0.95f, 1f); mat.gloss(0.3f, 30f); mat.emissive = 0.25f; mat.fogScale = 0.4f
+                    sx = 1f; sy = 1f; sz = 1f; ty = look.groundY
+                } else { id = MeshId.START_BUOYS; mat.emissive = 0.2f; sx = 1f; sy = 1f; sz = 1f; ty = look.surfaceY }
+            }
             Kind.GATE_ARCH -> {
-                id = MeshId.ATLANTIS_GATE
-                mat.tint(0.9f, 0.95f, 1f); mat.gloss(0.3f, 30f); mat.emissive = 0.25f; mat.fogScale = 0.4f
+                // the gate of Atlantis (variant 2), or the arches of the launch zone (the big one at the end, small ones along it): they stand lower than the city's gate, the rocket rises over them
+                id = if (e.variant == 2) MeshId.ATLANTIS_GATE else if (e.variant == 0) MeshId.GATE_ARCH_BIG else MeshId.GATE_ARCH_SMALL
+                mat.tint(0.9f, 0.95f, 1f); mat.gloss(0.3f, 30f); mat.emissive = if (e.variant == 2) 0.25f else if (e.variant == 0) 0.4f else 0.8f; mat.fogScale = 0.4f
                 sx = 1f; sy = 1f; sz = 1f
             }
             Kind.MOON -> {
@@ -457,6 +534,18 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
                     yaw += 11f * sin(e.age * 2.3f + e.param * 1.7f)
                 }
                 if (e.variant == OceanSpec.BUNTING) { mat.emissive = 0.3f; mat.fogScale = 0.5f }
+                // the airstrip's welcome: people who wave (and hop a little), balloons that bob, palms that sway
+                if (e.variant in OceanSpec.PERSON..OceanSpec.PERSON + 2) {
+                    mat.emissive = 0.12f; mat.gloss(0.2f, 20f)
+                    ty += 0.07f * abs(sin(e.age * 4.2f + e.param))
+                    yaw += 9f * sin(e.age * 1.9f + e.param * 1.7f)
+                }
+                if (e.variant == OceanSpec.BALLOON) {
+                    mat.tint(((e.tint shr 16) and 255) / 255f, ((e.tint shr 8) and 255) / 255f, (e.tint and 255) / 255f)
+                    mat.gloss(0.7f, 50f); mat.emissive = 0.25f
+                    ty += 0.2f * sin(e.age * 1.6f + e.param)
+                }
+                if (e.variant == OceanSpec.PALM) { mat.emissive = 0.1f; mat.fogScale = 0.6f }
             }
             Kind.ROCK -> { id = ROCKS[e.variant % 3]; mat.tint(0.62f, 0.8f, 0.84f) }
             else -> return false
@@ -488,8 +577,9 @@ class SceneRenderer(private val gl: Gles, library: MeshLibrary = MeshLibrary()) 
         val p = g.player
         if (!p.alive || g.phase == Phase.MENU) return
         val ocean = g.level.world == World.OCEAN
-        if (ocean && g.legIndex == 1 && g.phase != Phase.FINALE && g.phase != Phase.VICTORY) return // no shadows under water
-        val ground = if (ocean && g.legIndex == 0) g.look.surfaceY + 0.5f else if (g.phase == Phase.FINALE || g.phase == Phase.VICTORY) g.finaleGroundY else g.look.groundY
+        val finale = g.phase == Phase.FINALE || g.phase == Phase.VICTORY
+        if (ocean && g.leg.mode == VehicleMode.ROCKET && !finale) return // no shadows under water
+        val ground = if (ocean && g.leg.mode == VehicleMode.PLANE && !finale) g.look.surfaceY + 0.5f else if (finale) g.finaleGroundY else g.look.groundY
         if (!g.look.terrainOn && g.phase != Phase.FINALE && g.phase != Phase.VICTORY) return
         val h = max(0f, p.y - ground)
         if (h > 90f) return

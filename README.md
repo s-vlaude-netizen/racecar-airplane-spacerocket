@@ -2,10 +2,12 @@
 
 A 3D Android game where **one vehicle transforms three times** – three disciplines, one vehicle: you start as a race car, morph into an
 airplane to climb above the clouds, then into a space rocket to reach another world – where the rocket lands and
-turns back into a car for a victory drive. There are three levels: **the Moon** (from a mountain highway on Earth),
-**Mars** (across the red desert and through a dust storm to Phobos, with Mars filling the sky) and **The Deep**, where
+turns back into a car for a victory drive. There are four levels: **the Moon** (from a mountain highway on Earth),
+**Mars** (across the red desert and through a dust storm to Phobos, with Mars filling the sky), **The Deep**, where
 the vehicle goes the other way: a waterplane skims the open sea, dives into a submarine-rocket, lands on the seabed as a
-car and drives along a sunken highway to the lost city of Atlantis.
+car and drives along a sunken highway to the lost city of Atlantis – and **Homecoming**, which is The Deep run backwards:
+you leave Atlantis as a car, launch as a submarine-rocket from the seabed up through three kilometres of water, break
+through the surface as a waterplane and fly home to an island airstrip, where the whole island is waiting for you.
 
 Everything you see and hear is generated in code: all 3D models, the sky, the terrain, every sound
 effect and the music. There are no image, model or audio files in the app, and the only runtime dependency
@@ -59,6 +61,26 @@ is the Kotlin standard library (the whole APK is under 1 MB).
   </tr>
 </table>
 
+**Level 4 · Homecoming**
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/18-home-sunken-highway.jpg" alt="Level 4, stage 1: Sunken Highway"><br><sub><b>1 · Sunken Highway</b> – the road out of Atlantis, past wrecks, ruins and kelp, with traffic, crabs and mines on the way</sub></td>
+    <td><img src="docs/screenshots/19-home-launch.jpg" alt="The car launches as a rocket"><br><sub><b>The launch</b> – the car becomes a submarine-rocket and shoots off the seabed (a PERFECT LAUNCH pays +1000)</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/20-home-ascent.jpg" alt="Level 4, stage 2: The Ascent"><br><sub><b>2 · The Ascent</b> – up through the water between mines, sharks and shoals; the depth readout counts down to the surface</sub></td>
+    <td><img src="docs/screenshots/21-home-breach.jpg" alt="Breaking through the surface"><br><sub><b>The breach</b> – the rocket bursts out of the sea through the great ring and becomes a waterplane (PERFECT BREACH: +1000)</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/22-home-approach.jpg" alt="Level 4, stage 3: Homeward"><br><sub><b>3 · Homeward</b> – home over the open sea; the island with the airstrip rises ahead and the plane lowers its wheels</sub></td>
+    <td><img src="docs/screenshots/23-home-welcome.jpg" alt="Landing on the island airstrip"><br><sub><b>Welcome home</b> – the plane rolls out to a stop between a cheering crowd, bunting, balloons, confetti and fireworks</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/24-home-victory.jpg" alt="Mission complete on the island"><br><sub><b>Mission complete</b> – the triathlon is over: car, rocket and plane have brought you home</sub></td>
+  </tr>
+</table>
+
 <sub>These are headless renders of the real renderer and the real HUD code (see
 [Testing without a device](#testing-without-a-device)), not captures from a phone.</sub>
 
@@ -95,13 +117,24 @@ stage is a drive, so the game ends with an arrival at Atlantis instead of a land
 | 2 | a submarine-rocket | **Deep Dive** – weave between sea mines, sharks and jellyfish, collect pearls and fly through rings while the light fades. The next gate is where the seabed comes up to meet you (**PERFECT LANDING**). |
 | 3 | a seabed car | **Trench Run** – drive the sunken highway in the beam of your lights: submersible traffic, half-buried containers, kelp, mines on chains and crabs that scuttle across the road. Atlantis is at the end, and the whole city turns out to welcome you: merfolk cheer along the avenue, flags hang over the road, a school of colourful fish swims in to meet you and fish confetti and fireworks fill the water. |
 
+**Level 4 · Homecoming** is The Deep run backwards: the vehicle changes in the order *car → rocket → plane*, you start at
+the gate of Atlantis, and the game ends with a landing on an island.
+
+| Stage | You are | Homecoming |
+|---|---|---|
+| 1 | a seabed car | **Sunken Highway** – drive out of the lost city on its highway: submersible traffic, half-buried containers, kelp, mines on chains and crabs that scuttle across the road. Tap TRANSFORM in the zone to launch (a **PERFECT LAUNCH** pays +1000). |
+| 2 | a submarine-rocket | **The Ascent** – shoot up from the seabed through three kilometres of water: weave between sea mines, sharks and jellyfish, collect pearls and fly through rings while the light comes back. The depth readout counts down to the surface, and the last gate *is* the surface (**PERFECT BREACH**, +1000). |
+| 3 | a waterplane | **Homeward** – you burst out of the sea in a fountain of spray and fly home: rings, islands, ships, gulls, squalls and rival seaplanes, and flying low earns a **WAVE SKIM** bonus. At the end an island with an airstrip rises out of the sea: the plane lowers its wheels, glides in, flares, touches down and brakes to a stop at the same place however fast it came. The whole island has turned out: people wave from both sides of the runway, there are balloons, bunting across the runway, confetti and fireworks. |
+
 * **Steer** – drag anywhere on the left half of the screen (a floating stick). Left/right in the car, left/right + up/down in the air and in space. Optional **tilt steering** on the menu: your attitude at GO is neutral (it follows your grip during the countdown, so settle in however you like); tilt the right edge down to steer right, the top edge toward you to climb. A finger on the stick always wins.
 * **Boost** – hold the BOOST button. Nitro, orbs and crystals refill the meter.
 * **Transform** – near the end of the first two stages a glowing **transform zone** opens (guide arches / portal rings). Tap **TRANSFORM** while inside it. Pressing within the last 70 m of the gate is a **PERFECT LAUNCH** (+1000). If you forget, the vehicle transforms automatically at the gate, so you can never get stuck.
 * **Shields** – you have 3 per stage. A hit costs one and gives you a moment of invulnerability; wrenches repair. Lose all of them and you can retry the stage from its start.
 * **Score** – distance, coins, rings (streaks pay extra), near misses and transformations, plus a hull bonus and a time bonus when you land. 1–3 stars; the best score is saved per level and difficulty.
 * **Difficulty** – cycle EASY / NORMAL / HARD on the menu. Easy: 4 shields, wider gaps, a bit slower, ×0.8 points. Hard: 2 shields, tighter gaps, 10 % faster, ×1.4 points.
-* **Sound and music** can be switched off separately on the menu. There are thirteen music loops: the menu, and a race (or sea), a flight (or dive), a space (or seabed) and a finale loop for each level (Mars and The Deep are in other keys and moods).
+* **Sound and music** can be switched off separately on the menu. There are thirteen music loops: the menu, and a race (or sea), a flight (or dive), a space (or seabed) and a finale loop for each level (Mars and The Deep are in other keys and moods). Homecoming has no loops
+  of its own: the music follows the form you are in (the seabed loop for the car, the dive loop for the rocket, the sea loop for
+  the plane), and the landing on the island has the triumphant finale loop of the Moon.
 * **Keyboard / gamepad** also work: arrows or WASD (D-pad) steer, Shift / Space (R1, B) boost, T (X) transforms, Enter (A) starts, resumes or retries, L (Y) picks the level on the menu and goes on to the next one after a win, P / Esc (Start) pauses.
 
 A full run takes about three minutes.
@@ -149,11 +182,16 @@ Some of the techniques:
   only skins (rovers, saucers, hoodoos, a second palette, its own music) and one new mechanic, the rolling boulders.
   The Deep needed the logic to follow the order of a level's legs (plane, rocket, car), per-leg flight limits, a dive
   (the sea rises over the vehicle) and a landing (the seabed rises to meet it) and an arrival finale; the vehicle
-  gets a second dress (`Skin.OCEAN`) and carries a lamp in the dark water.
+  gets a second dress (`Skin.OCEAN`) and carries a lamp in the dark water. Homecoming runs the same legs in the other
+  order and so needed the look of the water to follow the form and the direction of the leg (the surface comes down
+  through the vehicle in the ascent, and the vehicle bursts through it), amphibious wheels that fold down as the plane's
+  landing gear, and an airstrip finale: the runway lies on an island and is tiled from 24 m segments like the road, and the
+  landing (glide path, flare, touchdown, braking) ends at a fixed spot however fast the plane came in. The paper confetti and the balloons are,
+  like the fish of Atlantis, functions of time alone (nothing is simulated or stored), so they cost nothing and can be tested exhaustively.
 * **Procedural sky** – gradient, sun glow, two star layers and a nebula (baked once into a small cubemap),
   all looked up per pixel from the view direction; its palette slides from daylight to space with altitude.
 * **Sound and music** – effects and engine loops are synthesised (additive tones, sweeps, filtered noise) and
-  cached as WAVs on first launch; the engine pitch follows your speed. The nine music loops are rendered the
+  cached as WAVs on first launch; the engine pitch follows your speed. The thirteen music loops are rendered the
   same way (one at a time, when first needed) and played gaplessly through a static `AudioTrack`.
 * **Frame budget** – meshes are built on a background thread while the menu is shown, the HUD reads an
   allocation-free state snapshot, and if frames stay slow the 3D resolution drops step by step (the HUD stays
@@ -161,12 +199,15 @@ Some of the techniques:
 
 ### Testing without a device
 
-* `core` has unit tests plus a **bot** that plays all three stages of all three levels headlessly on several seeds, on every
+* `core` has unit tests plus a **bot** that plays all three stages of all four levels headlessly on several seeds, on every
   difficulty and with a human-like reaction delay, to prove the game is winnable and never produces NaNs.
   The renderer, the vehicle morph and its ocean dress, the nebula cubemap, the audio synthesisers, and the Martian and ocean
   models (they must fit the collision boxes of what they replace or are placed by) have tests too; the ocean level has its own:
   the dive puts the vehicle under the surface and keeps it there, the landing is smooth and ends on the seabed inside the lanes,
-  the arrival parks the car, and the depth readout runs from the surface to the trench. `./gradlew :core:test --tests '*BalanceReportTest*' -Dbalance=1`
+  the arrival parks the car, and the depth readout runs from the surface to the trench. Homecoming has its own too: the order of
+  the forms, the ascent (the seabed falls away and the surface comes down through the vehicle), the plane touching down on the runway
+  and stopping at the same place however fast it came (and never with a wheel below the runway), the crowd and the buildings on the
+  island, and a win on every difficulty. `./gradlew :core:test --tests '*BalanceReportTest*' -Dbalance=1`
   prints how often skilled and human-like pilots win, lose shields and die on every level and difficulty (`core/build/balance.txt`).
 * **The pass-through audit** (`PassThroughAuditTest`, with `FootprintTest`, `SceneryClearanceTest` and `HazardSettleTest`): nothing
   that is drawn may be a ghost. The audit hooks into the renderer, takes every mesh it draws with the matrix it draws it with, and
@@ -195,6 +236,7 @@ Some of the techniques:
   tools/render-check/screenshots.sh                  # the Moon → tools/render-check/out/shots/*.png (28 key moments)
   tools/render-check/screenshots.sh <outDir> 1       # level 2, Mars
   tools/render-check/screenshots.sh <outDir> 2       # level 3, The Deep
+  tools/render-check/screenshots.sh <outDir> 3       # level 4, Homecoming
   ```
 
   It needs Node with Playwright + Chromium and Python with Pillow. Under the hood it is
@@ -213,13 +255,14 @@ with an error screen, that screen shows the same report. (Logcat has the full tr
 
 ## Status
 
-Developed and verified in a headless cloud environment: the code compiles, all tests pass (150 in `core`, 50 in `app`), Android
+Developed and verified in a headless cloud environment: the code compiles, all tests pass (162 in `core`, 50 in `app`), Android
 lint reports no errors (a few warnings, mostly the deliberate fixed-landscape, non-resizable activity), and the rendered frames
 were inspected. The first run on a real phone found an out-of-memory crash (the music was re-requested on every frame in
 the menu and on the results screens, each request synthesising a whole loop on a new thread); that is fixed and has regression
 tests. The Mars level was added without touching the first one: the Moon's bot results and all of its rendered frames are
 identical to before the change, and the same held when The Deep was added (the frames of the first two levels are byte-identical
-to those before the change); all three levels pass the same chaos, memory and strict-GL tests. Things that only real hardware
+to those before the change). Homecoming, the fourth level, is mostly built from The Deep's pieces run backwards, and all four
+levels pass the same audit, chaos, memory and strict-GL tests. Things that only real hardware
 can confirm: the frame rate on actual GPUs (software GL was used to render the frames), tilt steering, touch feel, how the
-synthesised audio sounds (it was checked numerically and as spectrograms, not by ear), and how hard Mars feels to people (its
-difficulty was measured with test pilots, see `BalanceReportTest`, not with people).
+synthesised audio sounds (it was checked numerically and as spectrograms, not by ear), and how hard Mars and Homecoming feel to people
+(their difficulty was measured with test pilots, see `BalanceReportTest`, not with people).

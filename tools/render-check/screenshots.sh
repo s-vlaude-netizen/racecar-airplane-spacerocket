@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Regenerates screenshots of the whole game without a device or emulator:
-#   1. a bot plays all three stages; the real renderer's GL commands and the HUD state at 28 key moments are recorded
+#   1. a bot plays all three stages; the real renderer's GL commands and the HUD state at the key moments are recorded
 #   2. the GL trace is replayed in headless Chromium (WebGL2 on SwiftShader)  -> 3D frames
 #   3. the real HUD (the Canvas code of the app) is drawn on transparent bitmaps by Robolectric -> overlays
 #   4. compose.py lays each overlay over its 3D frame                          -> <out>/shots/<name>.png
 #
-# usage: tools/render-check/screenshots.sh [outDir] [level]   (default: tools/render-check/out, level 0 = the Moon; 1 = Mars)
+# usage: tools/render-check/screenshots.sh [outDir] [level]   (default: tools/render-check/out, level 0 = the Moon; 1 = Mars; 2 = The Deep; 3 = Homecoming)
 # needs: JDK 17 + Android SDK (see README), Node with Playwright + Chromium, python3 with Pillow
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"

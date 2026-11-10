@@ -83,13 +83,13 @@ internal class Spawner(private val g: Game) {
 
     // ---- helpers ------------------------------------------------------------------------------
 
+    /** Two hazards may touch, but not be deeper inside each other than this (m). */
+    private val TOUCH = 0.5f
+
     /**
      * Whether a flying vehicle can meet what is placed at route distance [s]: the last stretch of a leg that ends in a transformation
      * (the player may transform as soon as the zone begins) and everything after it. Scenery there has to clear the flight lanes.
      */
-    /** Two hazards may touch, but not be deeper inside each other than this (m). */
-    private val TOUCH = 0.5f
-
     internal fun flyerMeets(s: Float): Boolean {
         val l = g.leg
         return l.zoneLength > 0f && s + 12f > l.length - l.zoneLength - 20f // (12 m: a piece placed at s may stand a little farther on)
@@ -670,7 +670,7 @@ internal class Spawner(private val g: Game) {
             }
         }
         // what would run into something that is already there
-        val v = max(30f, g.leg.speedStart * g.difficulty.speedScale)
+        val v = max(24f, g.leg.speedStart * g.difficulty.speedScale * 0.65f) // (the vehicle starts from a standstill and loses speed in a hit: a slower guess is the safe one)
         var i = from
         while (i < list.size) {
             val e = list[i]

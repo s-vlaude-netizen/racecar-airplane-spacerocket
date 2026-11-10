@@ -49,6 +49,7 @@ class Player {
         invuln = 0f
         blink = 0f
         visual.visible = true
+        visual.gear = 0f
         speedPenalty = 1f
         bounce = 0f; bounceV = 0f
         alive = true

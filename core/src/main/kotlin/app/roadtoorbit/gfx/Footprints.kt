@@ -43,6 +43,13 @@ object Footprints {
         14.05f,
         0.95f, 1.45f, 0.95f,
         14.35f,
+        0.5f, 0.5f, 0.5f, // the people who wave
+        0.55f, // a balloon
+        3.3f, // a palm
+        25.3f, // the terminal
+        5.0f, // the tower
+        16.3f, // the hangar
+        2.75f, // the windsock
     )
 
     /** The horizontal reach (m, at scale 1) of the scenery [kind] / [variant], or 0 for what is not scenery. */

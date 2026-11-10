@@ -105,6 +105,15 @@ object OceanSpec {
     const val MERFOLK = 17 // 17..19: a merperson standing on the tip of the tail, 3.3 m tall, arms raised, facing -Z (the welcome of Atlantis)
     const val BUNTING = 20 // a garland of flags between two poles 28 m apart across the avenue, in the XY plane, standing on y = 0, 11 m high
 
+    // the airstrip of HOMECOMING and its welcome: see AirfieldSpec
+    const val PERSON = 21 // 21..23: a person waving, 1.75 m tall
+    const val BALLOON = 24 // a party balloon, tinted by the material
+    const val PALM = 25 // a palm tree, 8 m tall
+    const val TERMINAL = 26 // the terminal building, 46 m long
+    const val TOWER = 27 // the control tower, 22 m high
+    const val HANGAR = 28 // an arched hangar, 22 m wide
+    const val WINDSOCK = 29 // a windsock on a pole, pointing toward +X
+
     val SEASCAPE: Array<MeshId> = arrayOf(
         MeshId.ISLAND_0, MeshId.ISLAND_1, MeshId.ISLAND_2,
         MeshId.CORAL_0, MeshId.CORAL_1, MeshId.CORAL_2,
@@ -116,6 +125,13 @@ object OceanSpec {
         MeshId.WHALE,
         MeshId.MERFOLK_0, MeshId.MERFOLK_1, MeshId.MERFOLK_2,
         MeshId.BUNTING,
+        MeshId.PERSON_0, MeshId.PERSON_1, MeshId.PERSON_2,
+        MeshId.BALLOON,
+        MeshId.PALM,
+        MeshId.TERMINAL,
+        MeshId.CONTROL_TOWER,
+        MeshId.HANGAR,
+        MeshId.WINDSOCK,
     )
 
     // ----------------------------------------------------------------------------------------------------------
@@ -139,6 +155,7 @@ internal object OceanMeshes {
         when {
             o in MeshId.PONTOON.ordinal..MeshId.LIGHT_CONE.ordinal -> OceanVehicleMeshes.build(id, b)
             o in MeshId.SEASTACK_0.ordinal..MeshId.CORAL_2.ordinal -> OceanSeaMeshes.build(id, b)
+            o >= MeshId.STRIP_SEG.ordinal -> OceanAirfieldMeshes.build(id, b)
             o >= MeshId.MERFOLK_0.ordinal -> OceanCelebrationMeshes.build(id, b)
             else -> OceanFloorMeshes.build(id, b)
         }

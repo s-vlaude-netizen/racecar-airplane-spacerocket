@@ -1,5 +1,6 @@
 package app.roadtoorbit.gfx
 
+import app.roadtoorbit.game.Finale
 import app.roadtoorbit.game.Game
 import app.roadtoorbit.game.Phase
 import app.roadtoorbit.game.World
@@ -244,10 +245,10 @@ class EnvironmentModel {
         val hills = 0.5f * sin(s / 260f + 0.4f) + 0.5f * sin(s / 131f)
         e.bendStart = 14f
         e.fogDensity = Mathx.lerp(0.0030f, Mathx.lerp(0.0046f, 0.0056f, dk), sub)
-        when (g.legIndex) {
-            0 -> { e.bendX = 0.00010f * curve; e.bendY = -0.00004f }
-            1 -> { e.bendX = 0.00012f * curve * sub; e.bendY = 0f }
-            else -> { e.bendX = 0.00032f * curve; e.bendY = 0.00014f * hills - 0.00004f }
+        when (g.leg.mode) {
+            VehicleMode.PLANE -> { e.bendX = 0.00010f * curve; e.bendY = -0.00004f }
+            VehicleMode.ROCKET -> { e.bendX = 0.00012f * curve * sub; e.bendY = 0f }
+            VehicleMode.CAR -> { e.bendX = 0.00032f * curve; e.bendY = 0.00014f * hills - 0.00004f }
         }
         e.terrainOn = look.terrainOn
         e.groundY = look.groundY
@@ -264,7 +265,9 @@ class EnvironmentModel {
         val lampPower = 0.55f * dark
         e.lampColor[0] = 1.0f * lampPower; e.lampColor[1] = 0.96f * lampPower; e.lampColor[2] = 0.82f * lampPower
 
-        if (finale) {
+        if (finale && g.level.finale == Finale.AIRSTRIP) {
+            e.bendX = 0f; e.bendY = 0f // the island in daylight: the air's palette, as it is
+        } else if (finale) {
             // the lost city lights the water around it
             e.fogDensity = 0.0034f
             e.fogColor[0] = 0.04f; e.fogColor[1] = 0.24f; e.fogColor[2] = 0.34f
